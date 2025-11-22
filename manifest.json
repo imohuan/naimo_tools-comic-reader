@@ -1,0 +1,29 @@
+{
+  "$schema": "./schema.json",
+  "id": "comic-reader",
+  "name": "漫画阅读",
+  "version": "1.0.0",
+  "author": "你的名字",
+  "icon": "./ico.png",
+  "description": "本地漫画阅读器，支持多目录扫描和章节浏览",
+  "category": "entertainment",
+  "enabled": true,
+  "main": "./index.html",
+  "preload": "./preload.js",
+  "feature": [
+    {
+      "path": "comic",
+      "name": "漫画阅读",
+      "icon": "./ico.png",
+      "description": "打开漫画阅读器",
+      "weight": 100,
+      "lifecycleType": "reuse",
+      "singleton": true,
+      "anonymousSearchFields": [
+        "漫画",
+        "comic",
+        "阅读"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* 增加滚动条宽度 */
+.n-scrollbar-rail {
+  width: 12px !important;
+}
+
+.n-scrollbar-rail .n-scrollbar-scrollbar {
+  width: 12px !important;
+}
+
+.n-scrollbar-rail .n-scrollbar-scrollbar .n-scrollbar-handle {
+  min-width: 8px !important;
+}
