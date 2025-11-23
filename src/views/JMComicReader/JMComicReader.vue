@@ -129,8 +129,8 @@
                   <span class="text-xs font-mono w-10 text-right text-gray-400"
                     >{{ imageScale }}%</span
                   >
-                </div></template
-              >
+                </div>
+              </template>
 
               <!-- 详情/图片预览切换按钮组 -->
               <div
@@ -159,6 +159,8 @@
                   图片预览
                 </button>
               </div>
+
+              <n-button size="small" @click="goToHome">主页</n-button>
             </div>
           </header>
 
@@ -270,6 +272,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { darkTheme, useMessage } from "naive-ui";
 import { onKeyStroke } from "@vueuse/core";
+import { useRouter } from "vue-router";
 import { useJMComicStore } from "@/stores/jmcomic";
 import { useSearch } from "@/hooks/useSearch";
 import SearchBar from "./components/SearchBar.vue";
@@ -283,6 +286,7 @@ import { eventBus } from "@/utils/event-bus";
 
 const store = useJMComicStore();
 const message = useMessage();
+const router = useRouter();
 
 const sidebarCollapsed = ref(false);
 const rightTab = ref<"detail" | "images">("detail");
@@ -419,6 +423,11 @@ watch(
     }
   }
 );
+
+// 跳转到主页
+function goToHome() {
+  router.push("/local");
+}
 
 // 刷新功能
 function handleRefresh() {

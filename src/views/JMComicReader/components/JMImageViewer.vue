@@ -275,7 +275,7 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
+<style>
 .viewer .n-scrollbar-rail__scrollbar {
   transform: translateX(-15px) !important;
   width: 18px !important;

@@ -116,6 +116,7 @@
             >{{ store.zoom }}%</span
           >
         </div>
+        <n-button size="small" @click="goToJMComic">JMComic</n-button>
       </div>
     </header>
 
@@ -185,6 +186,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useMessage } from "naive-ui";
 import { onKeyStroke } from "@vueuse/core";
+import { useRouter } from "vue-router";
 import { useComicStore } from "@/stores/comic";
 import MangaList from "@/components/MangaList.vue";
 import ImageViewer from "@/components/ImageViewer.vue";
@@ -192,11 +194,17 @@ import SettingsPanel from "@/components/SettingsPanel.vue";
 
 // 在子组件中使用 useMessage，此时 MessageProvider 已经挂载
 const message = useMessage();
+const router = useRouter();
 const store = useComicStore();
 const imageViewerRef = ref<InstanceType<typeof ImageViewer> | null>(null);
 
 // 自动滚动定时器
 let autoScrollInterval: number | null = null;
+
+// 跳转到 JMComic 路由
+function goToJMComic() {
+  router.push("/jmcomic");
+}
 
 // 加载漫画列表
 async function loadMangaList() {
