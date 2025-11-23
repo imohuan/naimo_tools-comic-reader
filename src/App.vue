@@ -3,7 +3,7 @@
     <n-global-style />
     <n-message-provider>
       <n-dialog-provider>
-        <ComicReaderContent />
+        <router-view />
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -17,5 +17,4 @@ import {
   NGlobalStyle,
   NDialogProvider,
 } from "naive-ui";
-import ComicReaderContent from "./components/ComicReaderContent.vue";
 </script>

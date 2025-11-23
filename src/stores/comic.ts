@@ -28,10 +28,8 @@ export interface ImageItem {
 export const useComicStore = defineStore("comic", () => {
   // 状态
   // 测试用默认路径
-  const defaultDirs = [
-    "C:\\Users\\IMOHUAN\\AppData\\Roaming\\com.lanyeeee.jmcomic-downloader\\漫画下载",
-    "C:\\Users\\IMOHUAN\\Desktop\\漫画",
-    "E:\\Code\\Test\\本子\\comic-download\\downloads",
+  const defaultDirs: string[] = [
+    // "C:\\Users\\IMOHUAN\\AppData\\Roaming\\com.lanyeeee.jmcomic-downloader\\漫画下载",
   ];
   const staticDirs = useStorage<string[]>(
     "comic-reader-static-dirs",

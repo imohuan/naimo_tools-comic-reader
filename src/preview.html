@@ -1,0 +1,2945 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JMComic 前端阅读器</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#ec4899', // JM 粉色风格
+            darkbg: '#1a1a1a',
+            cardbg: '#242424'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- VueUse -->
+  <script src="https://unpkg.com/@vueuse/shared"></script>
+  <script src="https://unpkg.com/@vueuse/core"></script>
+  <!-- Axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <!-- CryptoJS for MD5 and AES -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  <!-- Naive UI -->
+  <script src="https://unpkg.com/naive-ui@2.38.2/dist/index.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: #121212;
+      color: #e5e7eb;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    #app {
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #app>main {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .n-split {
+      height: 100% !important;
+    }
+
+    .n-split-pane {
+      height: 100% !important;
+      overflow: hidden;
+    }
+
+    /* 搜索框样式优化 */
+    .search-input {
+      transition: all 0.2s ease;
+      outline: none;
+      box-shadow: none;
+    }
+
+    .search-input:focus-within {
+      outline: none;
+      box-shadow: none;
+    }
+
+    .search-btn {
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    .search-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .search-btn:active {
+      transform: translateY(0);
+    }
+
+    /* 图片容器样式 - 无间隔 */
+    .image-preview-wrapper {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .image-scale-container {
+      margin: 0 auto;
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .image-virtual-list {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    /* 确保虚拟列表内容不会产生额外空白 */
+    .image-virtual-list .n-virtual-list {
+      height: 100% !important;
+    }
+
+    .image-item {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      display: block;
+      line-height: 0;
+    }
+
+    .image-item>div {
+      margin: 0;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .image-item img {
+      display: block;
+      width: 100%;
+      height: auto;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+
+<body class="w-full h-screen overflow-hidden select-none">
+  <div id="app" class="h-full overflow-hidden">
+    <n-config-provider :theme="darkTheme" class="h-full overflow-hidden">
+      <n-message-provider placement="bottom-right">
+        <n-notification-provider placement="bottom-right">
+          <!-- 主要内容区域 - 左右布局 -->
+          <main class="h-full overflow-hidden">
+            <n-split direction="horizontal" v-model:size="splitSize" :min="0" :max="1" class="h-full">
+              <template #1>
+                <!-- 左侧：漫画列表 -->
+                <div class="h-full flex flex-col bg-darkbg overflow-hidden border-r border-gray-800"
+                  style="height: 100%;" ref="leftPanelRef">
+                  <!-- 搜索和设置栏 -->
+                  <div class="p-4 border-b border-gray-800 flex items-center gap-3 flex-shrink-0">
+                    <n-button circle quaternary @click="showSettings = true" size="medium">
+                      <n-icon :size="20">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                          <path
+                            d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                        </svg>
+                      </n-icon>
+                    </n-button>
+                    <div class="flex-1 relative group">
+                      <n-input v-model:value="searchQuery" placeholder="输入车号(ID) 或 关键词" clearable
+                        @keyup.enter="() => handleSearch(1, false)" :theme-overrides="{
+                    color: '#1f1f1f',
+                    colorHover: '#2a2a2a',
+                    colorFocus: '#1f1f1f',
+                    borderColor: '#3a3a3a',
+                    borderColorHover: '#4a4a4a',
+                    borderColorFocus: '#ec4899',
+                    textColor: '#e5e7eb',
+                    placeholderColor: '#6b7280',
+                    borderRadius: '6px',
+                    heightMedium: '40px'
+                  }" size="medium" class="search-input">
+                        <template #prefix>
+                          <n-icon :size="18" class="text-gray-500 group-hover:text-gray-400 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <circle cx="11" cy="11" r="8"></circle>
+                              <path d="m21 21-4.35-4.35"></path>
+                            </svg>
+                          </n-icon>
+                        </template>
+                      </n-input>
+                    </div>
+                    <n-button @click="() => handleSearch(1, false)" size="medium" color="#ec4899"
+                      class="search-btn transition-all duration-200 text-white">
+                      搜索
+                    </n-button>
+                    <n-button circle quaternary @click="toggleRightPanel" size="medium"
+                      :title="splitSize === 1 ? '展开右侧面板' : '折叠右侧面板'">
+                      <n-icon :size="20">
+                        <svg v-if="splitSize === 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                      </n-icon>
+                    </n-button>
+
+                  </div>
+
+                  <div class="flex-1 overflow-hidden" style="height: 100%; display: flex; flex-direction: column;">
+                    <div v-if="loading && comicList.length === 0" class="py-20 text-center text-gray-500">
+                      <n-spin size="large">
+                        <template #description>
+                          <p>正在加载数据...</p>
+                        </template>
+                      </n-spin>
+                    </div>
+
+                    <div v-else-if="comicList.length === 0" class="text-center py-20 text-gray-500">
+                      <n-empty description="暂无数据，请尝试搜索" />
+                    </div>
+
+                    <n-infinite-scroll v-else :distance="10" @load="handleLoad" class="w-full h-full"
+                      id="image-scroll-container">
+                      <div class="p-2"
+                        :style="{ display: 'grid', gridTemplateColumns: `repeat(${leftColumnCount}, minmax(150px, 250px))`, gap: '0.5rem' }">
+                        <div v-for="item in comicList" :key="item.id"
+                          class="bg-cardbg rounded-lg overflow-hidden hover:ring-2 ring-primary transition cursor-pointer group"
+                          :class="{ 'ring-2 ring-primary': currentComic.id === item.id }" @click="viewDetail(item)">
+                          <div class="aspect-[2/3] overflow-hidden relative">
+                            <n-image :src="getProxiedUrl(item.cover || '', true)" lazy preview-disabled
+                              class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                              :intersection-observer-options="{
+                                root: '#image-scroll-container',
+                              }" @error="handleImgError">
+                              <template #placeholder>
+                                <div class="flex items-center justify-center w-full h-full bg-gray-800">
+                                  <n-spin size="small" />
+                                </div>
+                              </template>
+                            </n-image>
+                            <div
+                              class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
+                              <span class="text-xs text-gray-300">{{ item.author }}</span>
+                            </div>
+                          </div>
+                          <div class="p-2 flex flex-col gap-2">
+                            <h3 class="text-xs font-bold line-clamp-2 h-8 text-gray-100">{{ item.title }}</h3>
+                            <div class="flex justify-between items-center mt-1">
+                              <n-tag size="tiny" type="info">{{ item.id }}</n-tag>
+                              <span class="text-xs text-gray-500">{{ item.date || '最新' }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 加载状态提示（参考官方示例） -->
+                      <div v-if="loading && comicList.length > 0" class="py-4 text-center text-gray-500">
+                        <n-spin size="small" />
+                        <p class="text-xs mt-2">加载中...</p>
+                      </div>
+                      <!-- 没有更多提示（参考官方示例） -->
+                      <div v-if="!hasMorePages && comicList.length > 0 && !loading"
+                        class="py-4 text-center text-gray-500">
+                        <p class="text-xs">没有更多了 🤪</p>
+                      </div>
+                    </n-infinite-scroll>
+                  </div>
+
+                  <!-- 分页组件 -->
+                  <div class="p-4 border-t border-gray-800 flex items-center gap-4 flex-shrink-0">
+                    <div class="flex-1 min-w-0">
+                      <n-pagination v-model:page="currentPage" :page-size="pageSize" :item-count="totalItems"
+                        @update:page="handlePageChange" :disabled="loading" size="small" />
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <n-button :type="autoLoadNextPage ? 'primary' : 'default'" size="small" round
+                        @click="autoLoadNextPage = !autoLoadNextPage" :theme-overrides="{
+                      colorPrimary: '#ec4899',
+                      colorPrimaryHover: '#db2777',
+                      colorPrimaryPressed: '#be185d',
+                      borderRadius: '8px',
+                      heightSmall: '32px',
+                      paddingSmall: '0 16px'
+                    }" class="transition-all">
+                        <template #icon>
+                          <n-icon :size="16">
+                            <svg v-if="autoLoadNextPage" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                              fill="currentColor">
+                              <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                            </svg>
+                            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                          </n-icon>
+                        </template>
+                        {{ autoLoadNextPage ? '自动加载' : '手动翻页' }}
+                      </n-button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template #2>
+                <!-- 右侧：详情/图片预览 -->
+                <div class="h-full flex flex-col overflow-hidden bg-darkbg" style="height: 100%;">
+                  <div v-if="!currentComic.id" class="flex-1 flex items-center justify-center text-gray-500">
+                    <n-empty description="请从左侧选择漫画" />
+                  </div>
+
+                  <div v-else class="flex-1 flex flex-col overflow-hidden">
+                    <!-- Tab 切换和工具栏 -->
+                    <div class="border-b border-gray-800 flex items-center justify-between relative">
+                      <!-- 左侧：Tab 切换，占据剩余空间 -->
+                      <div class="flex-1 min-w-0 pl-4">
+                        <n-tabs v-model:value="rightTab" type="line" animated>
+                          <n-tab name="detail">详情</n-tab>
+                          <n-tab name="images" :disabled="!currentChapter.id">图片预览</n-tab>
+                        </n-tabs>
+                      </div>
+
+                      <div>
+                        <!-- 阅读进度（仅在图片预览时显示） -->
+                        <div v-if="rightTab === 'images' && readingImages.length > 0"
+                          class="flex items-center gap-2 max-w-xs absolute left-1/2 top-0 bottom-0  -translate-x-1/2">
+                          <span class="text-xs text-gray-300 whitespace-nowrap">阅读进度：</span>
+                          <span class="text-sm font-bold text-white">{{ currentImageIndex + 1 }}</span>
+                          <span class="text-xs text-gray-400">/</span>
+                          <span class="text-xs text-gray-400">{{ readingImages.length }}</span>
+                        </div>
+                      </div>
+
+                      <!-- 右侧：章节导航 + 阅读进度 + 缩放 + 折叠按钮 -->
+                      <div class="flex items-center gap-3 px-2 py-2 flex-shrink-0 ">
+                        <!-- 章节导航（仅在图片预览时显示） -->
+                        <!-- <div v-if="rightTab === 'images'" class="flex items-center gap-1">
+                          <n-button :disabled="!hasPrevChapter" quaternary circle size="small" @click="goToPrevChapter">
+                            <n-icon :size="16">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                              </svg>
+                            </n-icon>
+                          </n-button>
+                          <span v-if="currentChapter.title" class="text-sm text-gray-300 px-1 min-w-[3rem] text-center">
+                            {{ currentChapter.order || currentChapter.title?.match(/\d+/)?.[0] || 1 }}
+                          </span>
+                          <n-button :disabled="!hasNextChapter" quaternary circle size="small" @click="goToNextChapter">
+                            <n-icon :size="16">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                              </svg>
+                            </n-icon>
+                          </n-button>
+                        </div> -->
+
+
+
+                        <!-- 缩放控制（仅在图片预览时显示） -->
+                        <div v-if="rightTab === 'images'" class="flex items-center gap-2" style="min-width: 150px;">
+                          <n-slider v-model:value="imageScale" :min="20" :max="100" :step="10" style="width: 160px;" />
+                          <span class="text-xs text-gray-400" style="min-width: 40px;">{{ imageScale }}%</span>
+                        </div>
+
+                        <!-- 折叠左侧面板按钮 -->
+                        <n-button circle quaternary @click="toggleLeftPanel" size="small"
+                          :title="splitSize === 0 ? '展开左侧面板' : '折叠左侧面板'">
+                          <n-icon :size="18">
+                            <svg v-if="splitSize === 0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                              stroke-linejoin="round">
+                              <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                          </n-icon>
+                        </n-button>
+                      </div>
+                    </div>
+
+                    <!-- Tab 内容 -->
+                    <n-scrollbar style="height: 100%; flex: 1;">
+                      <div class="p-6">
+                        <!-- 详情 Tab -->
+                        <div v-if="rightTab === 'detail'" class="max-w-4xl mx-auto">
+                          <div class="bg-cardbg rounded-xl p-6 shadow-lg flex flex-col md:flex-row gap-6">
+                            <!-- 封面 -->
+                            <div class="w-full md:w-1/2 lg:w-1/3 flex-shrink-0">
+                              <n-image :src="getProxiedUrl(currentComic.cover || '', true)" lazy
+                                :preview-disabled="false" class="w-full rounded-lg shadow-md object-cover aspect-[2/3]"
+                                @error="handleImgError">
+                                <template #placeholder>
+                                  <div class="flex items-center justify-center w-full h-full bg-gray-800">
+                                    <n-spin size="small" />
+                                  </div>
+                                </template>
+                              </n-image>
+                            </div>
+
+                            <!-- 信息 -->
+                            <div class="flex-1">
+                              <h1 class="text-2xl md:text-3xl font-bold text-white mb-2">{{ currentComic.title }}</h1>
+                              <p class="text-gray-400 text-sm mb-4">JM ID: {{ currentComic.id }}</p>
+
+                              <div class="flex flex-wrap gap-2 mb-4">
+                                <n-tag v-for="tag in currentComic.tags" :key="tag" type="default" round>{{ tag
+                                  }}</n-tag>
+                              </div>
+
+                              <p class="text-gray-300 text-sm leading-relaxed mb-6">
+                                {{ currentComic.description || '暂无简介...' }}
+                              </p>
+
+                              <div class="border-t border-gray-700 pt-4">
+                                <h3 class="text-lg font-semibold mb-3 flex items-center">
+                                  章节列表
+                                </h3>
+                                <div v-if="detailLoading && chapterList.length === 0" class="py-10 text-center">
+                                  <n-spin size="large" />
+                                </div>
+                                <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  <button v-for="chapter in chapterList" :key="chapter.id"
+                                    class="px-4 py-3 bg-gray-700 hover:bg-primary rounded text-sm text-left transition truncate"
+                                    :class="{ 'bg-primary': currentChapter.id === chapter.id }"
+                                    @click="selectChapter(chapter)">
+                                    {{ chapter.title }}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- 图片预览 Tab -->
+                        <div v-else-if="rightTab === 'images'" class="w-full">
+                          <div v-if="!currentChapter.id" class="text-center py-20 text-gray-500">
+                            <n-empty description="请先选择一个章节" />
+                          </div>
+                          <div v-else class="w-full">
+                            <div class="text-center mb-4">
+                              <h2 class="text-lg font-bold">{{ currentChapter.title }}</h2>
+                              <p class="text-xs text-gray-500">如果图片无法加载，请检查代理设置</p>
+                            </div>
+
+                            <div v-if="detailLoading && readingImages.length === 0" class="py-40 text-center">
+                              <n-spin size="large">
+                                <template #description>
+                                  <p class="mt-4">正在解析图片...</p>
+                                </template>
+                              </n-spin>
+                            </div>
+
+                            <div v-else class="image-preview-wrapper">
+                              <div class="image-scale-container"
+                                :style="{ transform: `scale(${imageScale / 100})`, transformOrigin: 'top center', width: `${100 / (imageScale / 100)}%` }">
+                                <n-virtual-list ref="imageListRef" :items="readingImages"
+                                  :item-size="estimatedImageHeight" item-resizable
+                                  :scrollbar-props="{ trigger: 'none' }" class="image-virtual-list"
+                                  :on-scroll="handleImageListScroll">
+                                  <template #default="{ item }">
+                                    <div class="image-item" :data-index="item.index"
+                                      @click="() => currentImageIndex = item.index">
+                                      <div class="relative bg-gray-800 overflow-hidden">
+                                        <n-image :src="getProxiedUrl(item.url, true)" preview-disabled
+                                          :initial-index="item.index" object-fit="contain" lazy class="w-full block"
+                                          style="display: block;" @load="handleImageLoad" @error="handleImageError">
+                                          <template #placeholder>
+                                            <div class="flex items-center justify-center h-[300px] text-gray-600">
+                                              <n-spin size="small" />
+                                              <span class="ml-2">加载中 {{ item.index + 1 }}</span>
+                                            </div>
+                                          </template>
+                                          <template #error>
+                                            <div
+                                              class="flex flex-col items-center justify-center h-[300px] text-red-400 bg-gray-900">
+                                              <n-icon :size="30"><svg xmlns="http://www.w3.org/2000/svg"
+                                                  viewBox="0 0 24 24" fill="currentColor">
+                                                  <path
+                                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                                                </svg></n-icon>
+                                              <span class="text-sm mt-2">加载失败</span>
+                                              <span class="text-xs text-gray-500 mt-1">请检查网络连接或代理设置</span>
+                                            </div>
+                                          </template>
+                                        </n-image>
+                                        <span
+                                          class="absolute top-2 right-2 bg-black/50 px-2 py-1 rounded text-xs text-white pointer-events-none">
+                                          {{ item.index + 1 }} / {{ readingImages.length }}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </template>
+                                </n-virtual-list>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                    </n-scrollbar>
+                  </div>
+                </div>
+              </template>
+            </n-split>
+          </main>
+
+          <!-- 设置弹窗 -->
+          <n-modal v-model:show="showSettings" preset="card" title="设置" style="width: 90%; max-width: 600px;">
+            <n-scrollbar style="max-height: 70vh;">
+              <div class="flex flex-col gap-4 pr-4">
+                <n-alert type="warning" :closable="false" show-icon>
+                  JMComic 有严格的防盗链保护。要使用此页面，您必须提供一个能转发请求并修改 Headers 的后端代理地址。
+                </n-alert>
+
+                <n-divider>代理设置</n-divider>
+                <div>
+                  <label class="block text-sm font-medium mb-1">代理服务 URL (CORS Proxy)</label>
+                  <n-select v-model:value="settings.proxyUrl" :options="proxyUrlOptions" filterable tag clearable
+                    placeholder="例如: http://localhost:3000/proxy?url=" />
+                  <p class="text-xs text-gray-500 mt-1">
+                    代理需要处理请求并将图片数据以二进制流返回，同时设置 Header: `Referer: https://jmcomic.me/`
+                  </p>
+                </div>
+
+                <n-divider>API 配置</n-divider>
+                <div>
+                  <label class="block text-sm font-medium mb-1">API 域名 (API_DOMAIN)</label>
+                  <n-select v-model:value="settings.apiDomain" :options="apiDomainOptions" filterable tag clearable
+                    placeholder="例如: www.cdnblackmyth.club" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium mb-1">图片域名 (IMAGE_DOMAIN)</label>
+                  <n-select v-model:value="settings.imageDomain" :options="imageDomainOptions" filterable tag clearable
+                    placeholder="例如: cdn-msp2.jmapiproxy2.cc" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium mb-1">Token 密钥 (APP_TOKEN_SECRET)</label>
+                  <n-select v-model:value="settings.appTokenSecret" :options="tokenSecretOptions" filterable tag
+                    clearable placeholder="例如: 18comicAPP" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium mb-1">Token 密钥 2 (APP_TOKEN_SECRET_2)</label>
+                  <n-select v-model:value="settings.appTokenSecret2" :options="tokenSecret2Options" filterable tag
+                    clearable placeholder="例如: 18comicAPPContent" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium mb-1">数据密钥 (APP_DATA_SECRET)</label>
+                  <n-select v-model:value="settings.appDataSecret" :options="dataSecretOptions" filterable tag clearable
+                    placeholder="例如: 185Hcomic3PAPP7R" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium mb-1">应用版本 (APP_VERSION)</label>
+                  <n-select v-model:value="settings.appVersion" :options="appVersionOptions" filterable tag clearable
+                    placeholder="例如: 1.7.5" />
+                </div>
+
+                <n-divider>缓存管理</n-divider>
+                <div>
+                  <p class="text-sm text-gray-400 mb-3">
+                    缓存用于提升加载速度，自动在24小时后过期。您可以手动清除缓存以获取最新数据。
+                  </p>
+                  <div class="flex gap-2">
+                    <n-button @click="clearCache('details')" size="small">清除详情缓存</n-button>
+                    <n-button @click="clearCache('chapters')" size="small">清除图片缓存</n-button>
+                    <n-button @click="clearCache()" size="small" type="error">清除所有缓存</n-button>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">
+                    当前缓存：详情 {{ getCacheCount('details') }} 项，图片 {{ getCacheCount('chapters') }} 项
+                  </p>
+                </div>
+              </div>
+            </n-scrollbar>
+            <template #footer>
+              <div class="flex justify-between items-center">
+                <n-button @click="resetSettings">重置为默认</n-button>
+                <div class="flex gap-2">
+                  <n-button @click="showSettings = false">关闭</n-button>
+                  <n-button type="primary" @click="saveSettings">保存</n-button>
+                </div>
+              </div>
+            </template>
+          </n-modal>
+        </n-notification-provider>
+      </n-message-provider>
+    </n-config-provider>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, onMounted, onUnmounted, watch, computed, nextTick } = Vue;
+    const { useStorage } = VueUse;
+
+    // ==================== ComicAPI 类 ====================
+    class ComicAPI {
+      constructor(settings = {}) {
+        // API 配置 - 从设置中读取或使用默认值
+        this.updateSettings(settings);
+      }
+
+      // 更新配置
+      updateSettings(settings) {
+        this.API_DOMAIN = settings.apiDomain || 'www.cdnblackmyth.club';
+        this.IMAGE_DOMAIN = settings.imageDomain || 'cdn-msp2.jmapiproxy2.cc';
+        this.APP_TOKEN_SECRET = settings.appTokenSecret || '18comicAPP';
+        this.APP_TOKEN_SECRET_2 = settings.appTokenSecret2 || '18comicAPPContent';
+        this.APP_DATA_SECRET = settings.appDataSecret || '185Hcomic3PAPP7R';
+        this.APP_VERSION = settings.appVersion || '1.7.5';
+      }
+
+      // MD5 加密
+      md5(str) {
+        return CryptoJS.MD5(str).toString();
+      }
+
+      // 生成 Token
+      generateToken(timestamp, isScrambleId = false) {
+        const secret = isScrambleId ? this.APP_TOKEN_SECRET_2 : this.APP_TOKEN_SECRET;
+        return this.md5(timestamp + secret);
+      }
+
+      // 解密数据
+      decryptData(timestamp, encryptedData) {
+        try {
+          const keyHash = this.md5(timestamp + this.APP_DATA_SECRET);
+          const key = keyHash.substring(0, 32);
+          const keyBytes = CryptoJS.enc.Utf8.parse(key);
+
+          const encrypted = CryptoJS.enc.Base64.parse(encryptedData);
+
+          const decrypted = CryptoJS.AES.decrypt(
+            { ciphertext: encrypted },
+            keyBytes,
+            {
+              mode: CryptoJS.mode.ECB,
+              padding: CryptoJS.pad.Pkcs7
+            }
+          );
+
+          return decrypted.toString(CryptoJS.enc.Utf8);
+        } catch (error) {
+          throw new Error('解密失败: ' + error.message);
+        }
+      }
+
+      // 计算 block_num（用于图片拼接）
+      calculateBlockNum(scrambleId, chapterId, filename) {
+        if (chapterId < scrambleId) {
+          return 0;
+        } else if (chapterId < 268850) {
+          return 10;
+        } else {
+          const x = chapterId < 421926 ? 10 : 8;
+          const s = `${chapterId}${filename}`;
+          const hash = this.md5(s);
+          let blockNum = hash.charCodeAt(hash.length - 1);
+          blockNum %= x;
+          blockNum = blockNum * 2 + 2;
+          return blockNum;
+        }
+      }
+
+      // 拼接图片（使用 Canvas API）
+      async stitchImage(imageUrl, blockNum) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+
+          img.onload = function () {
+            try {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const width = img.width;
+              const height = img.height;
+
+              canvas.width = width;
+              canvas.height = height;
+
+              const remainderHeight = height % blockNum;
+
+              // 将图片切分为 blockNum 块并拼接
+              for (let i = 0; i < blockNum; i++) {
+                let blockHeight = Math.floor(height / blockNum);
+                // 计算源图像中当前块的Y轴起点位置（从底部开始）
+                const srcImgYStart = height - (blockHeight * (i + 1)) - remainderHeight;
+                // 计算目标图像中当前块的Y轴起点位置（从顶部开始）
+                let dstImgYStart = blockHeight * i;
+
+                // 第一块需要加上余数高度
+                if (i === 0) {
+                  blockHeight += remainderHeight;
+                } else {
+                  dstImgYStart += remainderHeight;
+                }
+
+                // 复制当前块
+                ctx.drawImage(
+                  img,
+                  0, srcImgYStart, width, blockHeight,  // 源图像区域
+                  0, dstImgYStart, width, blockHeight   // 目标图像区域
+                );
+              }
+
+              // 将 Canvas 转换为 Blob URL
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const url = URL.createObjectURL(blob);
+                  resolve(url);
+                } else {
+                  reject(new Error('图片拼接失败：无法创建 Blob'));
+                }
+              }, 'image/webp');
+            } catch (error) {
+              reject(new Error('图片拼接失败: ' + error.message));
+            }
+          };
+
+          img.onerror = function () {
+            reject(new Error('图片加载失败'));
+          };
+
+          img.src = imageUrl;
+        });
+      }
+
+      // API 请求函数
+      async apiRequest(path, method = 'GET', params = null, data = null, isScrambleId = false) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const token = this.generateToken(timestamp, isScrambleId);
+        const tokenparam = `${timestamp},${this.APP_VERSION}`;
+
+        const url = `https://${this.API_DOMAIN}${path}`;
+
+        const config = {
+          method,
+          url,
+          headers: {
+            'token': token,
+            'tokenparam': tokenparam
+          },
+          withCredentials: true
+        };
+
+        if (params) {
+          config.params = params;
+        }
+
+        if (data && method === 'POST') {
+          const formData = new URLSearchParams();
+          for (const key in data) {
+            formData.append(key, data[key]);
+          }
+          config.data = formData.toString();
+          config.headers['content-type'] = 'application/x-www-form-urlencoded';
+        }
+
+        // 打印请求日志
+        console.log(`[API Request] ${method} ${url}`, {
+          params,
+          data: data ? Object.keys(data).reduce((acc, key) => {
+            acc[key] = key === 'password' ? '***' : data[key];
+            return acc;
+          }, {}) : null,
+          headers: { token: token.substring(0, 8) + '...', tokenparam }
+        });
+
+        try {
+          const response = await axios(config);
+
+          // 打印响应日志
+          console.log(`[API Response] ${method} ${url}`, {
+            status: response.status,
+            code: response.data?.code,
+            dataSize: response.data ? JSON.stringify(response.data).length : 0,
+            data: response.data
+          });
+
+          if (response.data && response.data.code !== undefined) {
+            if (response.data.code !== 200) {
+              throw new Error(`API 返回错误: code=${response.data.code}, message=${response.data.msg || '未知错误'}`);
+            }
+
+            if (typeof response.data.data === 'string' && response.data.data) {
+              try {
+                const decrypted = this.decryptData(timestamp, response.data.data);
+                response.data.data = JSON.parse(decrypted);
+                console.log(`[API Decrypted] ${path}`, response.data.data);
+              } catch (e) {
+                try {
+                  response.data.data = JSON.parse(response.data.data);
+                } catch (e2) {
+                  // 保持原样
+                }
+              }
+            }
+          }
+
+          return response.data;
+        } catch (error) {
+          console.error(`[API Error] ${method} ${url}`, {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status
+          });
+          if (error.response) {
+            const status = error.response.status;
+            if (status === 401) {
+              throw new Error('未授权：请先登录或 Cookie 已过期');
+            }
+            throw new Error(`HTTP ${status}: ${error.response.statusText || ''}`);
+          } else if (error.request) {
+            throw new Error('网络请求失败，请检查网络连接');
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // 登录
+      async login(username, password) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const token = this.generateToken(timestamp);
+        const tokenparam = `${timestamp},${this.APP_VERSION}`;
+
+        const formDataObj = new URLSearchParams();
+        formDataObj.append('username', username);
+        formDataObj.append('password', password);
+
+        const response = await axios({
+          method: 'POST',
+          url: `https://${this.API_DOMAIN}/login`,
+          data: formDataObj.toString(),
+          headers: {
+            'token': token,
+            'tokenparam': tokenparam,
+            'content-type': 'application/x-www-form-urlencoded'
+          },
+          withCredentials: true
+        });
+
+        let responseData = response.data;
+        if (responseData.code !== 200) {
+          throw new Error(`API 返回错误: code=${responseData.code}`);
+        }
+
+        if (typeof responseData.data === 'string' && responseData.data) {
+          const decrypted = this.decryptData(timestamp, responseData.data);
+          responseData.data = JSON.parse(decrypted);
+        }
+
+        const userData = responseData.data;
+
+        if (userData.photo && !userData.photo.startsWith('http')) {
+          userData.photo = `https://${this.IMAGE_DOMAIN}/media/users/${userData.photo}`;
+        }
+
+        // 保存 session 和用户信息到 localStorage
+        if (userData.s) {
+          localStorage.setItem('comic_session', userData.s);
+        }
+        localStorage.setItem('comic_user', JSON.stringify(userData));
+
+        return userData;
+      }
+
+      // 获取用户信息
+      async getUserProfile() {
+        const response = await this.apiRequest('/login', 'POST');
+
+        if (response.code !== 200) {
+          if (response.code === 401 || response.msg?.includes('登录') || response.msg?.includes('未授权')) {
+            throw new Error('未授权：Cookie 无效或已过期，请重新登录');
+          }
+          throw new Error(`API 返回错误: code=${response.code}, msg=${response.msg || '未知错误'}`);
+        }
+
+        let userData = response.data;
+        if (!userData) {
+          throw new Error('获取用户信息失败：返回数据为空');
+        }
+
+        if (userData.photo && !userData.photo.startsWith('http')) {
+          userData.photo = `https://${this.IMAGE_DOMAIN}/media/users/${userData.photo}`;
+        }
+
+        if (userData.s) {
+          localStorage.setItem('comic_session', userData.s);
+        }
+        localStorage.setItem('comic_user', JSON.stringify(userData));
+
+        return userData;
+      }
+
+      // 搜索漫画
+      async search(keyword, page = 1, sort = 'Latest') {
+        const params = {
+          main_tag: 0,
+          search_query: keyword,
+          page: page,
+          o: sort
+        };
+
+        console.log('[Search] 搜索参数:', params);
+        const response = await this.apiRequest('/search', 'GET', params);
+        console.log('[Search] 响应数据:', response);
+
+        // 返回完整响应，让调用者处理数据结构
+        return response;
+      }
+
+      // 获取漫画详情
+      async getComic(aid) {
+        const params = { id: aid };
+        const response = await this.apiRequest('/album', 'GET', params);
+        return response.data || response;
+      }
+
+      // 获取章节图片列表
+      async getChapterImages(chapterId) {
+        // 1. 获取 scramble_id
+        const timestamp = Math.floor(Date.now() / 1000);
+        const scrambleToken = this.generateToken(timestamp, true);
+        const scrambleTokenparam = `${timestamp},${this.APP_VERSION}`;
+
+        const scrambleParams = {
+          id: chapterId,
+          v: timestamp,
+          mode: 'vertical',
+          page: 0,
+          app_img_shunt: 1,
+          express: 'off'
+        };
+
+        let scrambleId = 220980; // 默认值
+        try {
+          const scrambleResponse = await axios({
+            method: 'GET',
+            url: `https://${this.API_DOMAIN}/chapter_view_template`,
+            params: scrambleParams,
+            headers: {
+              'token': scrambleToken,
+              'tokenparam': scrambleTokenparam
+            },
+            withCredentials: true
+          });
+
+          // 从响应中提取 scramble_id
+          const body = scrambleResponse.data;
+          const match = body.match(/var scramble_id = (\d+);/);
+          if (match) {
+            scrambleId = parseInt(match[1]);
+          }
+        } catch (e) {
+          console.warn('获取 scramble_id 失败，使用默认值:', e);
+        }
+
+        // 2. 获取章节信息
+        const chapterParams = { id: chapterId };
+        const chapterResponse = await this.apiRequest('/chapter', 'GET', chapterParams);
+
+        // 处理响应数据结构
+        let chapterData;
+        if (chapterResponse.data && typeof chapterResponse.data === 'object' && !Array.isArray(chapterResponse.data)) {
+          chapterData = chapterResponse.data;
+        } else if (chapterResponse.images) {
+          chapterData = chapterResponse;
+        } else {
+          chapterData = chapterResponse.data || chapterResponse;
+        }
+
+        if (!chapterData || !chapterData.images || !Array.isArray(chapterData.images)) {
+          if (chapterData.images && Array.isArray(chapterData.images) && chapterData.images.length === 0) {
+            throw new Error('章节图片列表为空。可能的原因：1) 需要登录才能查看此章节；2) 章节 ID 不正确；3) 该章节确实没有图片');
+          }
+          throw new Error(`章节数据中没有图片列表。返回的数据: ${JSON.stringify(chapterData).substring(0, 200)}`);
+        }
+
+        if (chapterData.images.length === 0) {
+          throw new Error('该章节没有图片。可能的原因：1) 需要登录才能查看此章节；2) 章节 ID 不正确；3) 该章节确实没有图片');
+        }
+
+        // 3. 构造图片 URL 列表，并计算每张图片的 block_num
+        const images = chapterData.images.map((filename, index) => {
+          const url = `https://${this.IMAGE_DOMAIN}/media/photos/${chapterId}/${filename}`;
+          const filenameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+          const blockNum = this.calculateBlockNum(scrambleId, chapterId, filenameWithoutExt);
+          return {
+            url,
+            filename,
+            filenameWithoutExt,
+            blockNum,
+            index: index + 1,
+            processedUrl: null,
+            isProcessing: false
+          };
+        });
+
+        return {
+          chapterId,
+          scrambleId,
+          images,
+          total: images.length
+        };
+      }
+
+      // 处理图片拼接（如果需要）
+      async processImage(image) {
+        // 如果已经有处理过的URL（blob URL），直接返回
+        if (image.processedUrl && image.processedUrl.startsWith('blob:')) {
+          return image.processedUrl;
+        }
+
+        if (image.blockNum === 0) {
+          image.processedUrl = image.url;
+          return image.url;
+        }
+
+        if (image.isProcessing) {
+          // 如果正在处理中，返回原始URL（避免重复处理）
+          return image.url;
+        }
+
+        image.isProcessing = true;
+        try {
+          const processedUrl = await this.stitchImage(image.url, image.blockNum);
+          // 只有成功返回blob URL时才设置 processedUrl
+          if (processedUrl && processedUrl.startsWith('blob:')) {
+            image.processedUrl = processedUrl;
+            return processedUrl;
+          } else {
+            // 如果返回的不是blob URL，说明解码失败
+            console.warn('图片拼接返回的不是blob URL:', processedUrl?.substring(0, 50));
+            // 不设置 processedUrl，允许下次重试
+            return image.url;
+          }
+        } catch (error) {
+          console.error('图片拼接失败:', error);
+          // 不设置 processedUrl 为原始URL，允许下次重试
+          return image.url;
+        } finally {
+          image.isProcessing = false;
+        }
+      }
+
+      // 获取收藏夹
+      async getFavoriteFolder(folderId = 0, page = 1, sort = 'FavoriteTime') {
+        const params = {
+          folder_id: folderId,
+          page: page,
+          o: sort
+        };
+        const response = await this.apiRequest('/favorite', 'GET', params);
+        return response.data || response;
+      }
+
+      // 获取每周必看信息
+      async getWeeklyInfo() {
+        const response = await this.apiRequest('/week', 'GET');
+        return response.data || response;
+      }
+
+      // 获取每周必看
+      async getWeekly(categoryId, typeId) {
+        const params = {
+          category_id: categoryId,
+          type_id: typeId
+        };
+        const response = await this.apiRequest('/week/filter', 'GET', params);
+        return response.data || response;
+      }
+    }
+
+    // ==================== 创建全局 API 实例 ====================
+    let comicAPI = null;
+
+    const app = createApp({
+      setup() {
+        // --- 状态管理 ---
+        const loading = ref(false); // 左侧列表加载状态
+        const detailLoading = ref(false); // 详情页加载状态
+        const searchQuery = ref('');
+        const showSettings = ref(false);
+
+        // Message API - 使用 createDiscreteApi 创建独立实例（不需要 n-message-provider）
+        let messageApi = null;
+        try {
+          if (naive.createDiscreteApi) {
+            const { message: discreteMessage } = naive.createDiscreteApi(['message']);
+            messageApi = discreteMessage;
+            window.$message = discreteMessage;
+          }
+        } catch (e) {
+          console.warn('无法创建离散消息 API:', e);
+        }
+
+        const message = {
+          success: (msg) => {
+            if (messageApi) {
+              messageApi.success(msg);
+            } else if (window.$message) {
+              window.$message.success(msg);
+            } else {
+              console.log('[Success]', msg);
+            }
+          },
+          error: (msg) => {
+            if (messageApi) {
+              messageApi.error(msg);
+            } else if (window.$message) {
+              window.$message.error(msg);
+            } else {
+              console.error('[Error]', msg);
+            }
+          },
+          warning: (msg) => {
+            if (messageApi) {
+              messageApi.warning(msg);
+            } else if (window.$message) {
+              window.$message.warning(msg);
+            } else {
+              console.warn('[Warning]', msg);
+            }
+          },
+          info: (msg) => {
+            if (messageApi) {
+              messageApi.info(msg);
+            } else if (window.$message) {
+              window.$message.info(msg);
+            } else {
+              console.info('[Info]', msg);
+            }
+          }
+        };
+
+        // 持久化设置
+        const settings = useStorage('jm-settings', {
+          proxyUrl: '',
+          apiDomain: 'www.cdnblackmyth.club',
+          imageDomain: 'cdn-msp2.jmapiproxy2.cc',
+          appTokenSecret: '18comicAPP',
+          appTokenSecret2: '18comicAPPContent',
+          appDataSecret: '185Hcomic3PAPP7R',
+          appVersion: '1.7.5'
+        });
+
+        // n-select 下拉选项
+        const proxyUrlOptions = [
+          { label: '本地代理（推荐）', value: 'http://localhost:3000/proxy?url=' },
+          { label: '清空', value: '' }
+        ];
+
+        const apiDomainOptions = [
+          { label: 'www.cdnblackmyth.club', value: 'www.cdnblackmyth.club' },
+          { label: 'jmcomic.me', value: 'jmcomic.me' },
+          { label: 'jmcomic1.me', value: 'jmcomic1.me' }
+        ];
+
+        const imageDomainOptions = [
+          { label: 'cdn-msp2.jmapiproxy2.cc', value: 'cdn-msp2.jmapiproxy2.cc' },
+          { label: 'cdn-msp.jmapiproxy2.cc', value: 'cdn-msp.jmapiproxy2.cc' },
+          { label: 'img.jmcomic.me', value: 'img.jmcomic.me' }
+        ];
+
+        const tokenSecretOptions = [
+          { label: '18comicAPP', value: '18comicAPP' }
+        ];
+
+        const tokenSecret2Options = [
+          { label: '18comicAPPContent', value: '18comicAPPContent' }
+        ];
+
+        const dataSecretOptions = [
+          { label: '185Hcomic3PAPP7R', value: '185Hcomic3PAPP7R' }
+        ];
+
+        const appVersionOptions = [
+          { label: '1.7.5（最新）', value: '1.7.5' },
+          { label: '1.7.4', value: '1.7.4' },
+          { label: '1.7.3', value: '1.7.3' },
+          { label: '1.7.2', value: '1.7.2' },
+          { label: '1.7.1', value: '1.7.1' }
+        ];
+
+        // 初始化 API 实例
+        if (!comicAPI) {
+          comicAPI = new ComicAPI(settings.value);
+        }
+
+        // 监听设置变化，更新 API 配置
+        watch(settings, (newSettings) => {
+          if (comicAPI) {
+            comicAPI.updateSettings(newSettings);
+          }
+        }, { deep: true });
+
+        // 分页相关
+        const currentPage = ref(1);
+        const hasMorePages = ref(true);
+        const totalPages = ref(1);
+        const totalItems = ref(0);
+        const pageSize = ref(20);
+        const autoLoadNextPage = useStorage('jm-auto-load-next-page', false);
+        const leftPanelWidth = ref(320); // 左侧面板宽度（像素）
+        const leftPanelRef = ref(null); // 左侧面板容器引用
+
+        // 使用 useStorage 保存搜索结果到本地（不深度监听，手动保存）
+        const savedSearchResults = useStorage('jm-search-results', {
+          comicList: [],
+          searchQuery: '',
+          currentPage: 1,
+          totalItems: 0,
+          totalPages: 1,
+          hasMorePages: true,
+          timestamp: 0
+        });
+
+        // 保存当前查看的漫画（用于刷新后恢复）
+        const currentViewingComic = useStorage('jm-current-viewing-comic', {
+          id: null,
+          timestamp: 0
+        });
+
+        // 保存当前查看的章节（用于刷新后恢复）
+        const currentViewingChapter = useStorage('jm-current-viewing-chapter', {
+          comicId: null,
+          chapterId: null,
+          imageIndex: 0,
+          timestamp: 0
+        });
+
+        // 缓存系统：漫画详情和章节图片列表
+        const cacheStore = useStorage('jm-cache-store', {
+          details: {}, // { comicId: { data: {...}, timestamp: number } }
+          chapters: {} // { chapterId: { data: {...}, timestamp: number } }
+        });
+
+        // 缓存过期时间（毫秒）：24小时
+        const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000;
+
+        // 缓存工具函数
+        const cacheUtils = {
+          // 获取缓存
+          get(key, type = 'details') {
+            const cache = cacheStore.value[type];
+            if (!cache || !cache[key]) return null;
+
+            const cached = cache[key];
+            const now = Date.now();
+
+            // 检查是否过期
+            if (now - cached.timestamp > CACHE_EXPIRY_TIME) {
+              // 缓存已过期，删除
+              delete cache[key];
+              cacheStore.value[type] = { ...cache };
+              return null;
+            }
+
+            return cached.data;
+          },
+
+          // 设置缓存
+          set(key, data, type = 'details') {
+            const cache = cacheStore.value[type];
+            cacheStore.value[type] = {
+              ...cache,
+              [key]: {
+                data: data,
+                timestamp: Date.now()
+              }
+            };
+          },
+
+          // 清除缓存
+          clear(type = null) {
+            if (type) {
+              cacheStore.value[type] = {};
+            } else {
+              cacheStore.value = { details: {}, chapters: {} };
+            }
+          },
+
+          // 清除过期缓存
+          clearExpired() {
+            const now = Date.now();
+            ['details', 'chapters'].forEach(type => {
+              const cache = cacheStore.value[type];
+              const keys = Object.keys(cache);
+              let hasChanges = false;
+
+              keys.forEach(key => {
+                if (now - cache[key].timestamp > CACHE_EXPIRY_TIME) {
+                  delete cache[key];
+                  hasChanges = true;
+                }
+              });
+
+              if (hasChanges) {
+                cacheStore.value[type] = { ...cache };
+              }
+            });
+          }
+        };
+
+        // 保存搜索结果到本地存储
+        const saveSearchResults = () => {
+          savedSearchResults.value = {
+            comicList: [...comicList.value],
+            searchQuery: searchQuery.value,
+            currentPage: currentPage.value,
+            totalItems: totalItems.value,
+            totalPages: totalPages.value,
+            hasMorePages: hasMorePages.value,
+            timestamp: Date.now()
+          };
+        };
+
+        // 响应式列数计算
+        const leftColumnCount = computed(() => {
+          // 根据左侧面板宽度计算列数
+          // 每列最小宽度为 200px（包括gap）
+          const minColumnWidth = 200;
+          // 计算可用宽度（考虑 padding 16px，左右各8px）
+          const availableWidth = leftPanelWidth.value - 16;
+          // 如果可用宽度小于最小宽度，返回1列
+          if (availableWidth < minColumnWidth) {
+            return 1;
+          }
+          // 计算列数
+          const columns = Math.floor(availableWidth / minColumnWidth);
+          return Math.max(1, Math.min(columns, 10)); // 最少1列，最多5列
+        });
+
+        // 右侧 Tab
+        const rightTab = ref('detail');
+
+        // 分割面板大小控制：1 表示只显示左侧，0 表示只显示右侧，0.5 表示左右各一半
+        const splitSize = ref(1);
+
+        // 图片缩放比例（百分比）
+        const imageScale = ref(100);
+
+        // 估算的图片高度（用于虚拟列表），初始给一个略大一点的值
+        const estimatedImageHeight = ref(1000);
+        const hasMeasuredImageHeight = ref(false);
+
+        // 数据模型
+        const comicList = ref([]);
+        const currentComic = ref({});
+        const chapterList = ref([]);
+        const currentChapter = ref({});
+        const readingImages = ref([]);
+        const currentImageIndex = ref(0); // 当前查看的图片索引
+        const imageListRef = ref(null); // n-virtual-list 引用
+        // 当前章节的图片对象列表（响应式）
+        const currentChapterImages = ref([]);
+
+        // 阅读进度 slider 代理，拖动时同步滚动到对应图片
+        const currentImageIndexProxy = computed({
+          get() {
+            return currentImageIndex.value;
+          },
+          set(value) {
+            if (!readingImages.value.length) return;
+            const maxIndex = Math.max(0, readingImages.value.length - 1);
+            const targetIndex = Math.min(Math.max(0, value), maxIndex);
+            if (targetIndex === currentImageIndex.value) return;
+            currentImageIndex.value = targetIndex;
+
+            // 使用 Virtual List 官方 scrollTo API 滚动到对应图片
+            if (imageListRef.value && imageListRef.value.scrollTo) {
+              imageListRef.value.scrollTo({ index: targetIndex, behavior: 'smooth' });
+            }
+          }
+        });
+
+        // 虚拟列表滚动时，根据 scrollTop 粗略计算当前图片索引
+        // Naive UI Virtual List 的 on-scroll 回调签名类似于 { scrollTop, scrollLeft }
+        const handleImageListScroll = (pos) => {
+          if (!readingImages.value.length) return;
+          const scrollTop = (pos && typeof pos.scrollTop === 'number') ? pos.scrollTop : 0;
+
+          // Virtual List 内部会自动处理容器高度，我们用预估高度来近似计算索引即可
+          const avgHeight = estimatedImageHeight.value || 800;
+          const containerHeight = avgHeight; // 简单近似，视口高度约等于一张图高度
+
+          // 使用视口中线的位置来估算当前图片索引
+          let index = Math.round((scrollTop + containerHeight / 2) / avgHeight);
+          index = Math.max(0, Math.min(readingImages.value.length - 1, index));
+
+          if (index !== currentImageIndex.value) {
+            currentImageIndex.value = index;
+
+            // 同步保存到 localStorage
+            if (currentChapter.value && currentChapter.value.id && currentComic.value && currentComic.value.id) {
+              currentViewingChapter.value = {
+                comicId: currentComic.value.id,
+                chapterId: currentChapter.value.id,
+                imageIndex: index,
+                timestamp: Date.now()
+              };
+            }
+          }
+        };
+
+        // --- 核心逻辑：处理封面图 URL ---
+        const processCoverUrl = (image, albumId) => {
+          const imageDomain = settings.value.imageDomain || comicAPI.IMAGE_DOMAIN;
+
+          if (!image) {
+            // 如果没有图片，使用默认格式
+            if (albumId) {
+              return `https://${imageDomain}/media/albums/${albumId}_3x4.jpg`;
+            }
+            return '';
+          }
+
+          // 如果已经是完整URL，直接返回
+          if (image.startsWith('http://') || image.startsWith('https://')) {
+            return image;
+          }
+
+          // 如果是相对路径，拼接完整URL
+          // 处理不同的相对路径格式：
+          // - "albums/123456_3x4.jpg" -> "https://domain/media/albums/123456_3x4.jpg"
+          // - "123456_3x4.jpg" -> "https://domain/media/albums/123456_3x4.jpg"
+          // - "media/albums/123456_3x4.jpg" -> "https://domain/media/albums/123456_3x4.jpg"
+          if (image.startsWith('media/')) {
+            return `https://${imageDomain}/${image}`;
+          } else if (image.startsWith('albums/')) {
+            return `https://${imageDomain}/media/${image}`;
+          } else if (albumId) {
+            // 如果只是文件名，使用默认格式
+            return `https://${imageDomain}/media/albums/${albumId}_3x4.jpg`;
+          } else {
+            // 尝试直接拼接
+            return `https://${imageDomain}/media/albums/${image}`;
+          }
+        };
+
+        // --- 核心逻辑：代理 URL 生成 ---
+        const getProxiedUrl = (url, isImage = false) => {
+          if (!url) return '';
+          // 如果是本地 Mock 数据或 blob URL（拼接后的图片），直接返回
+          if (url.startsWith('data:') || url.startsWith('blob:') || url.includes('placeholder')) return url;
+
+          // 如果用户配置了代理，使用代理
+          if (settings.value.proxyUrl) {
+            const separator = settings.value.proxyUrl.includes('?') ? '&' : '?';
+            const typeParam = isImage ? '&type=image' : '';
+            return `${settings.value.proxyUrl}${encodeURIComponent(url)}${typeParam}`;
+          }
+
+          // 如果没有代理，返回原始 URL (通常会 403，除非安装了浏览器反 Referer 插件)
+          return url;
+        };
+
+        // --- 模拟数据 (Mock Data) 用于演示 ---
+        const mockComics = [
+          { id: '452830', title: '【演示数据】异世界后宫生活', author: 'JM作者', date: '2023-10-20', cover: 'https://placehold.co/400x600/222/FFF/png?text=Cover+1', description: '这是一个纯前端演示，因为没有配置代理，使用的是模拟数据。请在设置中配置代理以访问真实数据。' },
+          { id: '339912', title: '【演示数据】普通的恋爱故事', author: 'Unknown', date: '2023-10-18', cover: 'https://placehold.co/400x600/333/FFF/png?text=Cover+2', description: '模拟数据...' },
+          { id: '123456', title: '【演示数据】测试漫画条目', author: 'Test', date: '2023-10-15', cover: 'https://placehold.co/400x600/444/FFF/png?text=Cover+3', description: '模拟数据...' },
+        ];
+
+        // --- 业务功能 ---
+
+        const goHome = () => {
+          if (comicList.value.length === 0) loadMockData();
+        };
+
+        const loadMockData = () => {
+          loading.value = true;
+          setTimeout(() => {
+            comicList.value = mockComics;
+            currentPage.value = 1;
+            hasMorePages.value = false;
+            loading.value = false;
+            // 保存模拟数据到本地存储
+            saveSearchResults();
+          }, 500);
+        };
+
+        // 处理搜索响应数据
+        const processSearchResponse = (response) => {
+          let data = response.data || response;
+          let items = [];
+
+          if (data && data.content && Array.isArray(data.content)) {
+            items = data.content;
+            // 尝试从响应中获取总数和页数
+            if (data.total) {
+              const total = parseInt(data.total) || 0;
+              totalItems.value = total;
+              totalPages.value = Math.ceil(total / pageSize.value);
+            } else {
+              // 如果没有总数，根据当前页数据估算
+              totalItems.value = items.length * currentPage.value;
+              totalPages.value = currentPage.value + (items.length === pageSize.value ? 1 : 0);
+            }
+          } else if (data && data.list && Array.isArray(data.list)) {
+            items = data.list;
+            totalItems.value = items.length;
+            totalPages.value = Math.ceil(items.length / pageSize.value);
+          } else if (Array.isArray(data)) {
+            items = data;
+            totalItems.value = items.length;
+            totalPages.value = Math.ceil(items.length / pageSize.value);
+          }
+
+          return items.map(item => {
+            const albumId = item.id || item.aid || item.album_id;
+            const rawImage = item.image || item.thumb || item.cover || item.thumb_url || '';
+            return {
+              id: albumId,
+              title: item.name || item.title || '未知标题',
+              author: item.author || item.author_name || '未知作者',
+              date: item.update_at ? new Date(item.update_at * 1000).toLocaleDateString() : '',
+              cover: processCoverUrl(rawImage, albumId),
+              description: item.description || item.intro || '',
+              tags: item.tags || []
+            };
+          });
+        };
+
+        const handleSearch = async (page = 1, append = false) => {
+          if (!searchQuery.value && page === 1) {
+            // 如果没有搜索词，可以加载推荐或热门内容
+            loadMockData();
+            return;
+          }
+
+          if (page === 1 && !append) {
+            comicList.value = [];
+            currentPage.value = 1;
+            hasMorePages.value = true;
+          }
+
+          loading.value = true;
+          try {
+            const response = await comicAPI.search(searchQuery.value || '', page, 'Latest');
+            console.log('[handleSearch] 完整响应:', response);
+
+            const newItems = processSearchResponse(response);
+
+            if (append) {
+              comicList.value = [...comicList.value, ...newItems];
+            } else {
+              comicList.value = newItems;
+            }
+
+            // 判断是否还有更多页
+            if (newItems.length === 0 || currentPage.value >= totalPages.value) {
+              hasMorePages.value = false;
+            } else {
+              hasMorePages.value = true;
+            }
+
+            // 保存搜索结果到本地存储
+            saveSearchResults();
+          } catch (error) {
+            console.error('[handleSearch] 搜索失败:', error);
+            if (message) {
+              message.error('搜索失败: ' + error.message);
+            }
+            if (!append) {
+              comicList.value = [];
+            }
+            // 即使失败也保存当前状态
+            saveSearchResults();
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        // 加载下一页（用于无限滚动）
+        const loadNextPage = async () => {
+          console.log('loadNextPage');
+
+          if (loading.value || !hasMorePages.value) {
+            return Promise.resolve();
+          }
+          currentPage.value++;
+          await handleSearch(currentPage.value, true);
+        };
+
+        // 处理无限滚动加载（用于 n-infinite-scroll 组件）
+        // 参考官方示例：检查 loading 和 noMore 状态，防止重复触发
+        const handleLoad = async () => {
+          // 如果正在加载或没有更多页面，直接返回（参考官方示例）
+          if (loading.value || !hasMorePages.value) {
+            return;
+          }
+
+          // 如果自动加载未启用，直接返回
+          if (!autoLoadNextPage.value) {
+            return;
+          }
+
+          // handleSearch 会管理 loading 状态，这里不需要设置
+          try {
+            currentPage.value++;
+            // 追加模式加载下一页
+            await handleSearch(currentPage.value, true);
+          } catch (error) {
+            console.error('[handleLoad] 加载失败:', error);
+            // 加载失败时回退页码
+            currentPage.value--;
+            if (message) {
+              message.error('加载失败: ' + error.message);
+            }
+          } finally {
+            // 确保加载更多时也保存结果（handleSearch 已经保存，这里作为双重保险）
+            saveSearchResults();
+          }
+          // handleSearch 会在 finally 中自动设置 loading.value = false
+        };
+
+        // 分页变化处理
+        const handlePageChange = (page) => {
+          currentPage.value = page;
+          handleSearch(page, false);
+        };
+
+        // 每页数量变化处理
+        const handlePageSizeChange = (size) => {
+          pageSize.value = size;
+          currentPage.value = 1;
+          handleSearch(1, false);
+        };
+
+
+        // 更新左侧面板宽度
+        const updateLeftPanelWidth = () => {
+          if (leftPanelRef.value) {
+            let panelEl = null;
+            if (leftPanelRef.value instanceof HTMLElement) {
+              panelEl = leftPanelRef.value;
+            } else if (leftPanelRef.value && typeof leftPanelRef.value === 'object' && '$el' in leftPanelRef.value) {
+              panelEl = leftPanelRef.value.$el;
+            } else if (leftPanelRef.value && typeof leftPanelRef.value === 'object' && 'el' in leftPanelRef.value) {
+              panelEl = leftPanelRef.value.el;
+            }
+
+            if (panelEl && panelEl instanceof HTMLElement) {
+              leftPanelWidth.value = panelEl.offsetWidth || 320;
+              console.log('[Layout] 左侧面板宽度更新:', leftPanelWidth.value, '列数:', leftColumnCount.value);
+            }
+          }
+        };
+
+        // 监听窗口大小变化
+        const handleResize = () => {
+          updateLeftPanelWidth();
+        };
+
+        // 切换右侧面板显示/隐藏
+        const toggleRightPanel = () => {
+          splitSize.value = splitSize.value === 1 ? 0.5 : 1;
+        };
+
+        // 切换左侧面板显示/隐藏
+        const toggleLeftPanel = () => {
+          splitSize.value = splitSize.value === 0 ? 0.5 : 0;
+        };
+
+        // 处理键盘事件：Tab 键快速折叠/展开
+        const handleKeyDown = (event) => {
+          // 如果按下 Tab 键，且焦点不在输入框中
+          if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement && (
+              activeElement.tagName === 'INPUT' ||
+              activeElement.tagName === 'TEXTAREA' ||
+              activeElement.isContentEditable ||
+              activeElement.closest('input') ||
+              activeElement.closest('textarea')
+            );
+
+            // 如果焦点不在输入框中，则切换面板并阻止默认行为
+            if (!isInputFocused) {
+              event.preventDefault();
+              toggleRightPanel();
+            }
+          }
+        };
+
+        const viewDetail = async (comic) => {
+          currentComic.value = comic;
+          chapterList.value = [];
+          currentChapter.value = {};
+          readingImages.value = [];
+          rightTab.value = 'detail';
+          // 显示右侧面板
+          splitSize.value = 0.5;
+          detailLoading.value = true;
+
+          try {
+            const comicId = comic.id;
+
+            // 保存当前查看的漫画ID
+            currentViewingComic.value = {
+              id: comicId,
+              timestamp: Date.now()
+            };
+
+            // 先检查缓存
+            let detail = cacheUtils.get(comicId, 'details');
+
+            if (detail) {
+              console.log('[Cache] 使用缓存的漫画详情:', comicId, detail);
+              // 确保 detail 是对象
+              if (typeof detail !== 'object' || detail === null) {
+                console.warn('[Cache] 缓存数据格式错误，重新获取:', comicId);
+                detail = null;
+              }
+            } else {
+              console.log('[Cache] 缓存未命中，从API获取:', comicId);
+            }
+
+            // 如果缓存中没有或格式错误，从API获取
+            if (!detail) {
+              try {
+                detail = await comicAPI.getComic(comicId);
+                // 保存到缓存
+                if (detail && typeof detail === 'object') {
+                  cacheUtils.set(comicId, detail, 'details');
+                  console.log('[Cache] 已缓存漫画详情:', comicId);
+                }
+              } catch (error) {
+                console.error('[Cache] 获取漫画详情失败:', error);
+                throw error;
+              }
+            }
+
+            // 更新漫画详情
+            if (detail && typeof detail === 'object') {
+              const albumId = detail.id || comic.id;
+              const rawCover = detail.thumb || detail.cover || detail.thumb_url || comic.cover || '';
+              currentComic.value = {
+                ...comic,
+                ...detail,
+                title: detail.title || comic.title,
+                description: detail.description || detail.intro || comic.description,
+                tags: detail.tags || detail.tag_list || comic.tags || [],
+                cover: processCoverUrl(rawCover, albumId)
+              };
+            }
+
+            // 提取章节列表 - 优先使用 series 属性
+            if (detail && detail.series && Array.isArray(detail.series) && detail.series.length > 0) {
+              // 使用 series 数组，sort 作为章节名称
+              chapterList.value = detail.series.map((item) => {
+                // 如果 name 存在且不为空，使用 name；否则使用 sort 作为名称
+                let title = item.name;
+                if (!title || title.trim() === '') {
+                  const sortValue = item.sort || '';
+                  title = sortValue ? `第${sortValue}话` : '未知章节';
+                }
+                return {
+                  id: item.id || item.chapter_id,
+                  title: title,
+                  order: parseInt(item.sort || 0)
+                };
+              }).sort((a, b) => (a.order || 0) - (b.order || 0));
+            } else if (detail && detail.photos && Array.isArray(detail.photos) && detail.photos.length > 0) {
+              // 备用方案：使用 photos
+              chapterList.value = detail.photos.map((photo, index) => ({
+                id: photo.id || photo.photo_id || photo.chapter_id || (index + 1),
+                title: photo.title || photo.name || `第${index + 1}话`,
+                order: photo.order || index + 1
+              })).sort((a, b) => (a.order || 0) - (b.order || 0));
+            } else if (detail && detail.chapters && Array.isArray(detail.chapters) && detail.chapters.length > 0) {
+              // 备用方案：使用 chapters
+              chapterList.value = detail.chapters.map((chapter, index) => ({
+                id: chapter.id || chapter.chapter_id || (index + 1),
+                title: chapter.title || chapter.name || `第${index + 1}话`,
+                order: chapter.order || index + 1
+              })).sort((a, b) => (a.order || 0) - (b.order || 0));
+            } else {
+              // 如果列表为空，默认显示一个章节，名称为"第一章"，ID为当前漫画的ID
+              const comicId = comic.id || detail?.id;
+              chapterList.value = [{
+                id: comicId,
+                title: '第一章',
+                order: 1
+              }];
+            }
+          } catch (error) {
+            if (message) {
+              message.error('获取漫画详情失败: ' + error.message);
+            }
+            chapterList.value = [];
+          } finally {
+            detailLoading.value = false;
+          }
+        };
+
+        // 选择章节
+        const selectChapter = async (chapter) => {
+          currentChapter.value = chapter;
+          readingImages.value = [];
+          currentChapterImages.value = []; // 重置图片对象列表
+          currentImageIndex.value = 0; // 重置当前图片索引
+          hasMeasuredImageHeight.value = false; // 重置高度测量
+          rightTab.value = 'images';
+          detailLoading.value = true;
+
+          // 清理旧的解码观察器
+          cleanupImageDecodeObserver();
+
+          // 清理旧的解码观察器
+          cleanupImageDecodeObserver();
+
+          try {
+            const chapterId = chapter.id;
+            const comicId = currentComic.value.id;
+
+            // 保存当前查看的章节信息
+            currentViewingChapter.value = {
+              comicId: comicId,
+              chapterId: chapterId,
+              imageIndex: 0,
+              timestamp: Date.now()
+            };
+
+            // 先检查缓存
+            let result = cacheUtils.get(chapterId, 'chapters');
+
+            if (result) {
+              console.log('[Cache] 使用缓存的章节图片列表:', chapterId, `共${result.images?.length || 0}张图片`);
+              // 确保缓存数据格式正确
+              if (typeof result !== 'object' || !result.images || !Array.isArray(result.images)) {
+                console.warn('[Cache] 缓存数据格式错误，重新获取:', chapterId);
+                result = null;
+              } else {
+                // 从缓存读取时，需要重置图片处理状态（因为 blob URL 不能持久化）
+                // 确保每个图片对象都有所有必要的属性
+                result.images = result.images.map((img, index) => ({
+                  url: img.url || `https://${comicAPI.IMAGE_DOMAIN}/media/photos/${chapterId}/${img.filename || ''}`,
+                  filename: img.filename || '',
+                  filenameWithoutExt: img.filenameWithoutExt || img.filename?.replace(/\.[^/.]+$/, '') || '',
+                  blockNum: img.blockNum || 0,
+                  index: img.index || index + 1,
+                  processedUrl: null, // 重置处理后的URL，需要重新解码
+                  isProcessing: false
+                }));
+                console.log('[Cache] 缓存数据已准备，准备进行图片解码');
+              }
+            } else {
+              console.log('[Cache] 缓存未命中，从API获取:', chapterId);
+            }
+
+            // 如果缓存中没有或格式错误，从API获取
+            if (!result) {
+              try {
+                result = await comicAPI.getChapterImages(chapterId);
+                // 保存到缓存
+                if (result && result.images && Array.isArray(result.images)) {
+                  cacheUtils.set(chapterId, result, 'chapters');
+                  console.log('[Cache] 已缓存章节图片列表:', chapterId, `共${result.images.length}张图片`);
+                }
+              } catch (error) {
+                console.error('[Cache] 获取章节图片失败:', error);
+                throw error;
+              }
+            }
+
+            // 处理图片列表
+            if (result && result.images && Array.isArray(result.images)) {
+              // 存储完整的图片对象（包含 blockNum 等信息）到响应式数据
+              currentChapterImages.value = result.images;
+              console.log('[Chapter] 已设置 currentChapterImages, 共', result.images.length, '张图片');
+
+              // 初始化时显示原始 URL，后续会异步处理拼接（解码）
+              // 将 readingImages 改为对象数组，包含 url 和 index，以便在模板中正确显示索引
+              readingImages.value = result.images.map((img, idx) => ({
+                url: img.url,
+                index: idx
+              }));
+
+              // 异步处理需要拼接（解码）的图片
+              // 优先处理首屏的少量图片，避免一次性处理整章所有图片
+              const processImages = async () => {
+                // 先处理第一张图片（如果存在）
+                if (result.images.length > 0) {
+                  const firstImage = result.images[0];
+                  if (firstImage.blockNum > 0) {
+                    try {
+                      console.log(`[Image Decode] 优先解码第一张图片, blockNum: ${firstImage.blockNum}`);
+                      const processedUrl = await comicAPI.processImage(firstImage);
+                      if (readingImages.value[0]) {
+                        readingImages.value[0].url = processedUrl;
+                      }
+                      console.log(`[Image Decode] 第一张图片解码完成`);
+                    } catch (error) {
+                      console.error(`[Image Decode] 第一张图片解码失败:`, error);
+                    }
+                  } else {
+                    console.log(`[Image Decode] 第一张图片无需解码 (blockNum=0)`);
+                  }
+                }
+
+                // 然后异步处理其余少量图片，不阻塞UI
+                // 这里限制最多只处理前 8 张图片，避免一次性解码整章
+                const MAX_DECODE_IMAGES = 8;
+                result.images.forEach(async (image, index) => {
+                  // 跳过第一张（已经处理）
+                  if (index === 0) return;
+                  // 超出预解码数量的图片保持原始 URL，由 n-image 的 lazy 自己决定何时真正加载
+                  if (index >= MAX_DECODE_IMAGES) return;
+
+                  if (image.blockNum > 0) {
+                    try {
+                      console.log(`[Image Decode] 开始解码图片 ${index + 1}/${result.images.length}, blockNum: ${image.blockNum}`);
+                      const processedUrl = await comicAPI.processImage(image);
+                      // 更新对应位置的图片 URL
+                      if (readingImages.value[index]) {
+                        readingImages.value[index].url = processedUrl;
+                      }
+                      console.log(`[Image Decode] 图片 ${index + 1} 解码完成`);
+                    } catch (error) {
+                      console.error(`[Image Decode] 图片 ${index + 1} 解码失败:`, error);
+                      // 失败时保持原始URL，用户仍能看到图片（虽然可能是乱序的）
+                    }
+                  } else {
+                    console.log(`[Image Decode] 图片 ${index + 1} 无需解码 (blockNum=0)`);
+                  }
+                });
+              };
+
+              // 开始处理图片
+              processImages();
+            } else {
+              throw new Error('章节图片列表为空');
+            }
+          } catch (error) {
+            if (message) {
+              message.error('获取章节图片失败: ' + error.message);
+            }
+            readingImages.value = [];
+          } finally {
+            detailLoading.value = false;
+            // 等待 DOM 更新后重新设置滚动监听器并更新图片索引
+            nextTick(() => {
+              setTimeout(() => {
+                // 重新设置滚动监听器
+                const setupScrollListener = () => {
+                  let scrollContainer = document.querySelector('.n-scrollbar-container');
+                  if (!scrollContainer) {
+                    scrollContainer = document.querySelector('.n-virtual-list');
+                  }
+                  if (!scrollContainer) {
+                    scrollContainer = document.querySelector('.image-virtual-list');
+                  }
+                  if (!scrollContainer) {
+                    const imageWrapper = document.querySelector('.image-preview-wrapper');
+                    if (imageWrapper) {
+                      scrollContainer = imageWrapper.closest('.n-scrollbar-container') ||
+                        imageWrapper.closest('.n-scrollbar') ||
+                        imageWrapper.parentElement;
+                    }
+                  }
+
+                  if (scrollContainer) {
+                    // 如果之前有监听器，先移除
+                    if (scrollContainerRef && scrollHandler) {
+                      scrollContainerRef.removeEventListener('scroll', scrollHandler);
+                    }
+                    if (mutationObserver) {
+                      mutationObserver.disconnect();
+                    }
+
+                    scrollContainerRef = scrollContainer;
+
+                    // 使用防抖函数优化性能，但响应更快
+                    let scrollTimer = null;
+                    scrollHandler = () => {
+                      // 立即更新一次（用于快速响应）
+                      updateCurrentImageIndex();
+                      // 然后防抖更新（用于最终确认）
+                      if (scrollTimer) clearTimeout(scrollTimer);
+                      scrollTimer = setTimeout(() => {
+                        updateCurrentImageIndex();
+                      }, 100);
+                    };
+                    scrollContainer.addEventListener('scroll', scrollHandler, { passive: true });
+
+                    // 监听图片加载，更新索引
+                    mutationObserver = new MutationObserver(() => {
+                      updateCurrentImageIndex();
+                    });
+                    mutationObserver.observe(scrollContainer, { childList: true, subtree: true });
+
+                    // 设置图片解码观察器
+                    setupImageDecodeObserver(scrollContainer);
+
+                    // 初始更新
+                    updateCurrentImageIndex();
+                  }
+                };
+                setupScrollListener();
+              }, 500);
+            });
+          }
+        };
+
+        // 计算是否有上一章
+        const hasPrevChapter = computed(() => {
+          if (!chapterList.value || chapterList.value.length === 0 || !currentChapter.value.id) {
+            return false;
+          }
+          const currentIndex = chapterList.value.findIndex(ch => ch.id === currentChapter.value.id);
+          return currentIndex > 0;
+        });
+
+        // 计算是否有下一章
+        const hasNextChapter = computed(() => {
+          if (!chapterList.value || chapterList.value.length === 0 || !currentChapter.value.id) {
+            return false;
+          }
+          const currentIndex = chapterList.value.findIndex(ch => ch.id === currentChapter.value.id);
+          return currentIndex >= 0 && currentIndex < chapterList.value.length - 1;
+        });
+
+        // 跳转到上一章
+        const goToPrevChapter = async () => {
+          if (!hasPrevChapter.value) return;
+
+          const currentIndex = chapterList.value.findIndex(ch => ch.id === currentChapter.value.id);
+          if (currentIndex > 0) {
+            const prevChapter = chapterList.value[currentIndex - 1];
+            await selectChapter(prevChapter);
+            // 滚动到顶部
+            nextTick(() => {
+              const scrollContainer = document.querySelector('.n-scrollbar-container');
+              if (scrollContainer) {
+                scrollContainer.scrollTop = 0;
+              }
+            });
+          }
+        };
+
+        // 跳转到下一章
+        const goToNextChapter = async () => {
+          if (!hasNextChapter.value) return;
+
+          const currentIndex = chapterList.value.findIndex(ch => ch.id === currentChapter.value.id);
+          if (currentIndex >= 0 && currentIndex < chapterList.value.length - 1) {
+            const nextChapter = chapterList.value[currentIndex + 1];
+            await selectChapter(nextChapter);
+            // 滚动到顶部
+            nextTick(() => {
+              const scrollContainer = document.querySelector('.n-scrollbar-container');
+              if (scrollContainer) {
+                scrollContainer.scrollTop = 0;
+              }
+            });
+          }
+        };
+
+        // 更新当前图片索引（通过监听滚动）
+        const updateCurrentImageIndex = () => {
+          if (readingImages.value.length === 0) return;
+
+          // 尝试多个可能的滚动容器选择器
+          let scrollContainer = document.querySelector('.n-scrollbar-container');
+          if (!scrollContainer) {
+            scrollContainer = document.querySelector('.n-virtual-list');
+          }
+          if (!scrollContainer) {
+            scrollContainer = document.querySelector('.image-virtual-list');
+          }
+          if (!scrollContainer) {
+            // 如果都找不到，尝试找到包含图片的滚动容器
+            const imageWrapper = document.querySelector('.image-preview-wrapper');
+            if (imageWrapper) {
+              scrollContainer = imageWrapper.closest('.n-scrollbar-container') ||
+                imageWrapper.closest('.n-scrollbar') ||
+                imageWrapper;
+            }
+          }
+
+          if (!scrollContainer) return;
+
+          // 获取所有图片元素
+          const imageItems = scrollContainer.querySelectorAll('.image-item');
+          if (imageItems.length === 0) return;
+
+          // 获取滚动容器的可视区域
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const containerTop = containerRect.top;
+          const containerCenter = containerTop + scrollContainer.clientHeight / 2;
+
+          // 找到最接近中心位置的图片
+          let closestIndex = 0;
+          let closestDistance = Infinity;
+          let maxVisibleRatio = 0;
+
+          imageItems.forEach((item) => {
+            // 从 data-index 属性获取真实的图片索引
+            const realIndex = parseInt(item.getAttribute('data-index') || '-1', 10);
+            if (realIndex < 0 || realIndex >= readingImages.value.length) {
+              return; // 跳过无效索引
+            }
+
+            const rect = item.getBoundingClientRect();
+            const itemTop = rect.top;
+            const itemBottom = rect.bottom;
+            const itemHeight = rect.height;
+
+            // 计算图片在可视区域内的可见比例
+            const visibleTop = Math.max(itemTop, containerRect.top);
+            const visibleBottom = Math.min(itemBottom, containerRect.bottom);
+            const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+            const visibleRatio = visibleHeight / itemHeight;
+
+            // 如果图片在可视区域内
+            if (itemTop <= containerRect.bottom && itemBottom >= containerRect.top) {
+              const itemCenter = (itemTop + itemBottom) / 2;
+              const distance = Math.abs(itemCenter - containerCenter);
+
+              // 优先选择可见比例最大的，如果可见比例相同，选择距离中心最近的
+              if (visibleRatio > maxVisibleRatio ||
+                (visibleRatio === maxVisibleRatio && distance < closestDistance)) {
+                maxVisibleRatio = visibleRatio;
+                closestDistance = distance;
+                closestIndex = realIndex;
+              }
+            }
+          });
+
+          // 如果找到了有效的索引，更新
+          if (closestIndex !== currentImageIndex.value) {
+            currentImageIndex.value = closestIndex;
+
+            // 保存当前图片索引到 localStorage
+            if (currentChapter.value && currentChapter.value.id && currentComic.value && currentComic.value.id) {
+              currentViewingChapter.value = {
+                comicId: currentComic.value.id,
+                chapterId: currentChapter.value.id,
+                imageIndex: closestIndex,
+                timestamp: Date.now()
+              };
+            }
+          }
+        };
+
+        const handleImgError = (e) => {
+          // e.target.src = 'fallback_image_url';
+        };
+
+        // 处理图片加载完成：用第一张实际高度回填 estimatedImageHeight
+        const handleImageLoad = (e) => {
+          const imgEl = e?.target;
+          if (!imgEl || imgEl.tagName !== 'IMG') return;
+
+          // 更新估算高度（仅第一次）
+          if (!hasMeasuredImageHeight.value && imgEl.getBoundingClientRect) {
+            const rect = imgEl.getBoundingClientRect();
+            if (rect.height && rect.height > 0) {
+              estimatedImageHeight.value = Math.round(rect.height);
+              hasMeasuredImageHeight.value = true;
+            }
+          }
+        };
+
+        // ==================== 图片解码 Hooks ====================
+        // 图片解码观察器
+        let imageDecodeObserver = null;
+
+        // 使用图片解码 Hook
+        const useImageDecode = () => {
+          // 查找图片对象
+          const findImageObject = (imgSrc) => {
+            if (!currentChapterImages.value || !Array.isArray(currentChapterImages.value)) {
+              console.log('[Image Decode] currentChapterImages 为空或不是数组');
+              return null;
+            }
+
+            // 首先尝试从 readingImages 中查找匹配的索引
+            let matchedIndex = -1;
+            if (readingImages.value && Array.isArray(readingImages.value)) {
+              matchedIndex = readingImages.value.findIndex(item => {
+                if (!item || typeof item !== 'object') return false;
+                const proxiedUrl = getProxiedUrl(item.url, true);
+                return imgSrc.includes(item.url) || imgSrc.includes(proxiedUrl);
+              });
+            }
+
+            // 如果找到了匹配的索引，直接返回对应的图片对象
+            if (matchedIndex >= 0 && matchedIndex < currentChapterImages.value.length) {
+              const imageObj = currentChapterImages.value[matchedIndex];
+              console.log('[Image Decode] 从 readingImages 找到匹配的图片对象:', {
+                index: matchedIndex,
+                filename: imageObj.filename,
+                blockNum: imageObj.blockNum,
+                url: imageObj.url.substring(0, 50)
+              });
+              return imageObj;
+            }
+
+            // 否则从 currentChapterImages 中查找
+            const imageObj = currentChapterImages.value.find(imgObj => {
+              const proxiedUrl = getProxiedUrl(imgObj.url, true);
+              const match = imgSrc.includes(imgObj.url) ||
+                imgSrc.includes(proxiedUrl) ||
+                imgSrc.includes(imgObj.filename) ||
+                (imgObj.processedUrl && imgSrc.includes(imgObj.processedUrl));
+
+              if (match) {
+                console.log('[Image Decode] 找到匹配的图片对象:', {
+                  index: currentChapterImages.value.indexOf(imgObj),
+                  filename: imgObj.filename,
+                  blockNum: imgObj.blockNum,
+                  url: imgObj.url.substring(0, 50)
+                });
+              }
+              return match;
+            });
+
+            return imageObj;
+          };
+
+          // 处理单张图片解码
+          const decodeImage = async (img, imageObj, index) => {
+            if (!imageObj) {
+              console.warn('[Image Decode] 图片对象不存在');
+              return;
+            }
+
+            console.log(`[Image Decode] 开始处理图片 ${index + 1}`, {
+              filename: imageObj.filename,
+              blockNum: imageObj.blockNum,
+              processedUrl: imageObj.processedUrl,
+              isProcessing: imageObj.isProcessing,
+              currentSrc: img.src?.substring(0, 50)
+            });
+
+            // 如果图片需要解码且尚未处理
+            if (imageObj.blockNum > 0 && !imageObj.processedUrl && !imageObj.isProcessing) {
+              // 不要在这里设置 isProcessing，让 processImage 自己管理
+              img.dataset.decoding = 'true';
+              console.log(`[Image Decode] 图片 ${index + 1} 开始解码, blockNum: ${imageObj.blockNum}`);
+
+              try {
+                // 异步解码（processImage 内部会管理 isProcessing 状态）
+                const processedUrl = await comicAPI.processImage(imageObj);
+
+                // 检查返回的URL是否为blob URL（解码成功）还是原始URL（解码失败）
+                const isBlobUrl = processedUrl && processedUrl.startsWith('blob:');
+                console.log(`[Image Decode] 图片 ${index + 1} 解码${isBlobUrl ? '成功' : '失败（返回原始URL）'}`, {
+                  processedUrl: processedUrl?.substring(0, 50),
+                  type: isBlobUrl ? 'blob' : 'url',
+                  isBlobUrl: isBlobUrl
+                });
+
+                if (processedUrl && isBlobUrl) {
+                  // 只有成功解码（返回blob URL）时才更新响应式数据列表
+                  if (index >= 0 && index < readingImages.value.length && readingImages.value[index]) {
+                    readingImages.value[index].url = processedUrl;
+                    console.log(`[Image Decode] 已更新 readingImages[${index}].url`, processedUrl.substring(0, 50));
+                  } else {
+                    console.warn(`[Image Decode] 索引超出范围: ${index}, readingImages.length: ${readingImages.value.length}`);
+                  }
+
+                  // processImage 已经在 finally 中清除了 isProcessing
+                  img.dataset.decoded = 'true';
+                  img.removeAttribute('data-decoding');
+                  console.log(`[Image Decode] 图片 ${index + 1} 处理完成`);
+                } else {
+                  // 解码失败，清除 processedUrl 以便下次重试
+                  // processImage 已经在 finally 中清除了 isProcessing
+                  console.warn(`[Image Decode] 图片 ${index + 1} 解码失败，返回的是原始URL，清除 processedUrl 以便重试`);
+                  imageObj.processedUrl = null;
+                  img.removeAttribute('data-decoding');
+                }
+              } catch (error) {
+                console.error(`[Image Decode] 图片 ${index + 1} 解码失败:`, error);
+                // 清除 processedUrl 以便重试
+                // processImage 已经在 finally 中清除了 isProcessing
+                imageObj.processedUrl = null;
+                img.removeAttribute('data-decoding');
+              }
+            } else if (imageObj.blockNum === 0) {
+              // 无需解码，直接标记
+              img.dataset.decoded = 'true';
+              console.log(`[Image Decode] 图片 ${index + 1} 无需解码 (blockNum=0)`);
+            } else {
+              console.log(`[Image Decode] 图片 ${index + 1} 跳过处理`, {
+                blockNum: imageObj.blockNum,
+                hasProcessedUrl: !!imageObj.processedUrl,
+                isProcessing: imageObj.isProcessing
+              });
+            }
+          };
+
+          // 设置图片解码监听器：使用 MutationObserver 监听 img 的 src 变化
+          const setupImageDecodeObserver = (container) => {
+            if (!container) {
+              console.warn('[Image Decode] 容器不存在');
+              return;
+            }
+
+            console.log('[Image Decode] 设置图片解码观察器, 容器:', container);
+
+            // 如果已存在观察器，先断开
+            if (imageDecodeObserver) {
+              imageDecodeObserver.disconnect();
+              console.log('[Image Decode] 已断开旧的观察器');
+            }
+
+            // 尝试找到虚拟列表的实际容器
+            let targetContainer = container;
+
+            // 方法1: 通过 imageListRef 获取虚拟列表容器
+            if (imageListRef.value) {
+              let virtualListEl = null;
+              if (imageListRef.value.$el) {
+                virtualListEl = imageListRef.value.$el;
+              } else if (imageListRef.value.el) {
+                virtualListEl = imageListRef.value.el;
+              } else if (imageListRef.value instanceof HTMLElement) {
+                virtualListEl = imageListRef.value;
+              }
+
+              if (virtualListEl) {
+                // 查找虚拟列表的实际渲染容器（通常是内部的一个 div）
+                const virtualListContainer = virtualListEl.querySelector('.n-virtual-list') ||
+                  virtualListEl.querySelector('.image-virtual-list') ||
+                  virtualListEl;
+                if (virtualListContainer) {
+                  targetContainer = virtualListContainer;
+                  console.log('[Image Decode] 使用虚拟列表容器:', targetContainer);
+                }
+              }
+            }
+
+            // 方法2: 通过选择器查找虚拟列表容器
+            if (targetContainer === container) {
+              const virtualListEl = document.querySelector('.image-virtual-list') ||
+                document.querySelector('#image-scroll-container') ||
+                document.querySelector('.n-virtual-list');
+              if (virtualListEl) {
+                targetContainer = virtualListEl;
+                console.log('[Image Decode] 通过选择器找到虚拟列表容器:', targetContainer);
+              }
+            }
+
+            // 使用找到的容器
+            container = targetContainer;
+
+            // 递归查找所有 img 元素
+            const findAllImages = (node) => {
+              const images = [];
+              if (node.nodeType === 1) { // Element node
+                if (node.tagName === 'IMG') {
+                  images.push(node);
+                } else {
+                  // 查找子元素中的所有 img（包括深层嵌套）
+                  const childImages = node.querySelectorAll('img');
+                  images.push(...Array.from(childImages));
+                }
+              }
+              return images;
+            };
+
+            // 处理单个图片元素
+            const processImageElement = (img) => {
+              if (!img || img.tagName !== 'IMG') return;
+
+              // 检查是否已经处理过
+              if (img.dataset.decoded === 'true') {
+                console.log('[Image Decode] 图片已处理过，跳过');
+                return;
+              }
+
+              // 获取当前 src
+              const currentSrc = img.src || img.getAttribute('src');
+
+              // 如果图片还没有 src，等待 src 设置或 load 事件
+              if (!currentSrc) {
+                console.log('[Image Decode] 图片 src 为空，等待设置');
+                // 使用 MutationObserver 监听这个元素的 src 属性
+                const srcObserver = new MutationObserver((mutations) => {
+                  mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'src') {
+                      srcObserver.disconnect();
+                      const newSrc = img.src || img.getAttribute('src');
+                      if (newSrc) {
+                        console.log('[Image Decode] 图片 src 已设置，重新处理');
+                        processImageElement(img);
+                      }
+                    }
+                  });
+                });
+                srcObserver.observe(img, { attributes: true, attributeFilter: ['src'] });
+                // 3秒后自动断开，避免内存泄漏
+                setTimeout(() => srcObserver.disconnect(), 3000);
+                return;
+              }
+
+              console.log('[Image Decode] 处理图片元素', {
+                src: currentSrc.substring(0, 50),
+                complete: img.complete,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight
+              });
+
+              // 查找对应的图片对象
+              const imageObj = findImageObject(currentSrc);
+              if (!imageObj) {
+                console.warn('[Image Decode] 未找到匹配的图片对象', {
+                  src: currentSrc.substring(0, 50)
+                });
+                return;
+              }
+
+              // 找到索引
+              const index = currentChapterImages.value.indexOf(imageObj);
+              if (index === -1) {
+                console.warn('[Image Decode] 无法找到图片索引');
+                return;
+              }
+
+              // 如果图片已经加载完成，立即处理
+              if (img.complete && img.naturalWidth > 0) {
+                console.log('[Image Decode] 图片已加载完成，立即处理');
+                decodeImage(img, imageObj, index);
+              } else {
+                // 等待图片加载完成
+                console.log('[Image Decode] 等待图片加载完成');
+                const onLoad = () => {
+                  img.removeEventListener('load', onLoad);
+                  console.log('[Image Decode] 图片加载完成，开始处理');
+                  decodeImage(img, imageObj, index);
+                };
+                img.addEventListener('load', onLoad, { once: true });
+                // 如果图片加载失败，也尝试处理（可能图片已经缓存）
+                img.addEventListener('error', () => {
+                  console.log('[Image Decode] 图片加载失败，但仍尝试处理');
+                  decodeImage(img, imageObj, index);
+                }, { once: true });
+              }
+            };
+
+            // 创建 MutationObserver 监听 img 元素的添加和属性变化
+            imageDecodeObserver = new MutationObserver((mutations) => {
+              console.log('[Image Decode] MutationObserver 触发, mutations 数量:', mutations.length);
+
+              mutations.forEach((mutation) => {
+                console.log('[Image Decode] Mutation 类型:', mutation.type, {
+                  target: mutation.target,
+                  addedNodes: mutation.addedNodes.length,
+                  removedNodes: mutation.removedNodes.length,
+                  attributeName: mutation.attributeName
+                });
+                if (mutation.type === 'attributes' && mutation.attributeName === 'src') {
+                  // src 属性变化
+                  const img = mutation.target;
+                  console.log('[Image Decode] 检测到 src 属性变化', {
+                    tagName: img.tagName,
+                    src: (img.src || img.getAttribute('src'))?.substring(0, 50)
+                  });
+                  processImageElement(img);
+                } else if (mutation.type === 'childList') {
+                  // 新增或删除节点
+                  console.log('[Image Decode] 检测到 DOM 变化 (childList)', {
+                    addedNodes: mutation.addedNodes.length,
+                    removedNodes: mutation.removedNodes.length
+                  });
+
+                  // 处理新增的节点，递归查找所有 img 元素
+                  mutation.addedNodes.forEach((node) => {
+                    const images = findAllImages(node);
+                    console.log(`[Image Decode] 在新增节点中找到 ${images.length} 张图片`);
+                    images.forEach((img) => {
+                      processImageElement(img);
+                    });
+                  });
+                }
+              });
+            });
+
+            // 观察容器内所有变化（重点是 childList，监听新增元素）
+            imageDecodeObserver.observe(container, {
+              childList: true,  // 监听子节点的添加和删除（重要！）
+              subtree: true,    // 监听所有后代节点
+              attributes: true, // 监听属性变化
+              attributeFilter: ['src'] // 只监听 src 属性
+            });
+
+            console.log('[Image Decode] 观察器已启动，监听容器:', container, {
+              childList: true,
+              subtree: true,
+              attributes: true
+            });
+
+            console.log('[Image Decode] 观察器已启动');
+
+            // 处理已存在的图片
+            const existingImages = container.querySelectorAll('.image-item img');
+            console.log(`[Image Decode] 处理已存在的图片，共 ${existingImages.length} 张`);
+
+            existingImages.forEach((img) => {
+              processImageElement(img);
+            });
+
+            // 添加定期检查机制（作为 MutationObserver 的备用方案）
+            // 虚拟列表可能不会触发 MutationObserver，所以定期检查新图片
+            let checkInterval = null;
+            const checkNewImages = () => {
+              const allImages = container.querySelectorAll('.image-item img');
+              let newCount = 0;
+              allImages.forEach((img) => {
+                if (!img.dataset.decoded && !img.dataset.checking) {
+                  img.dataset.checking = 'true';
+                  newCount++;
+                  processImageElement(img);
+                }
+              });
+              if (newCount > 0) {
+                console.log(`[Image Decode] 定期检查发现 ${newCount} 张新图片`);
+              }
+            };
+
+            // 每 500ms 检查一次新图片
+            checkInterval = setInterval(checkNewImages, 500);
+
+            // 保存 interval ID，以便清理
+            if (!container._decodeCheckInterval) {
+              container._decodeCheckInterval = checkInterval;
+            }
+
+            console.log('[Image Decode] 已启动定期检查机制（每 500ms）');
+          };
+
+          // 清理观察器
+          const cleanupImageDecodeObserver = () => {
+            if (imageDecodeObserver) {
+              imageDecodeObserver.disconnect();
+              imageDecodeObserver = null;
+              console.log('[Image Decode] 已清理观察器');
+            }
+
+            // 清理定期检查
+            const containers = document.querySelectorAll('.image-virtual-list, #image-scroll-container, .n-virtual-list');
+            containers.forEach(container => {
+              if (container._decodeCheckInterval) {
+                clearInterval(container._decodeCheckInterval);
+                container._decodeCheckInterval = null;
+                console.log('[Image Decode] 已清理定期检查');
+              }
+            });
+          };
+
+          return {
+            setupImageDecodeObserver,
+            cleanupImageDecodeObserver
+          };
+        };
+
+        // 使用图片解码 Hook
+        const { setupImageDecodeObserver, cleanupImageDecodeObserver } = useImageDecode();
+
+        // 处理图片加载错误
+        const handleImageError = (e) => {
+          // 错误处理已在模板中完成
+        };
+
+        const saveSettings = () => {
+          // 更新 API 配置
+          if (comicAPI) {
+            comicAPI.updateSettings(settings.value);
+          }
+          showSettings.value = false;
+          if (message) {
+            message.success('设置已保存');
+          }
+          // 如果有搜索词，重新搜索
+          if (searchQuery.value) {
+            currentPage.value = 1;
+            handleSearch(1, false);
+          }
+        };
+
+        const resetSettings = () => {
+          settings.value = {
+            proxyUrl: '',
+            apiDomain: 'www.cdnblackmyth.club',
+            imageDomain: 'cdn-msp2.jmapiproxy2.cc',
+            appTokenSecret: '18comicAPP',
+            appTokenSecret2: '18comicAPPContent',
+            appDataSecret: '185Hcomic3PAPP7R',
+            appVersion: '1.7.5'
+          };
+          if (message) {
+            message.info('已重置为默认设置');
+          }
+        };
+
+        // 清除缓存
+        const clearCache = (type = null) => {
+          cacheUtils.clear(type);
+          if (message) {
+            if (type) {
+              message.success(`已清除${type === 'details' ? '详情' : '图片'}缓存`);
+            } else {
+              message.success('已清除所有缓存');
+            }
+          }
+        };
+
+        // 获取缓存数量
+        const getCacheCount = (type) => {
+          const cache = cacheStore.value[type];
+          if (!cache) return 0;
+          return Object.keys(cache).length;
+        };
+
+        // ResizeObserver 实例
+        let resizeObserver = null;
+
+        // 滚动监听器相关
+        let scrollContainerRef = null;
+        let scrollHandler = null;
+        let mutationObserver = null;
+        let intersectionObserver = null;
+
+        // 初始化
+        onMounted(() => {
+          // 清除过期缓存
+          cacheUtils.clearExpired();
+
+          // useStorage 会自动加载，检查是否有保存的数据
+          const saved = savedSearchResults.value;
+          if (saved && saved.comicList && saved.comicList.length > 0) {
+            // 同步保存的数据到当前状态
+            comicList.value = saved.comicList;
+            searchQuery.value = saved.searchQuery || '';
+            currentPage.value = saved.currentPage || 1;
+            totalItems.value = saved.totalItems || 0;
+            totalPages.value = saved.totalPages || 1;
+            hasMorePages.value = saved.hasMorePages !== undefined ? saved.hasMorePages : true;
+
+            // 检查是否有保存的当前查看漫画，如果有则自动恢复
+            const viewingComic = currentViewingComic.value;
+            const viewingChapter = currentViewingChapter.value;
+
+            if (viewingComic && viewingComic.id) {
+              // 延迟恢复，确保列表已加载
+              setTimeout(async () => {
+                let restoredComic = null;
+
+                // 在漫画列表中查找对应的漫画
+                const foundComic = comicList.value.find(c => c.id === viewingComic.id);
+                if (foundComic) {
+                  console.log('[Restore] 恢复之前查看的漫画:', viewingComic.id);
+                  restoredComic = foundComic;
+                  await viewDetail(foundComic);
+                } else {
+                  // 如果列表中没有，尝试从缓存恢复基本信息
+                  const cachedDetail = cacheUtils.get(viewingComic.id, 'details');
+                  if (cachedDetail && typeof cachedDetail === 'object') {
+                    console.log('[Restore] 从缓存恢复漫画详情:', viewingComic.id);
+                    // 构造一个基本的漫画对象
+                    const albumId = cachedDetail.id || viewingComic.id;
+                    const rawCover = cachedDetail.thumb || cachedDetail.cover || cachedDetail.thumb_url || '';
+                    const basicComic = {
+                      id: viewingComic.id,
+                      title: cachedDetail.title || cachedDetail.name || '未知标题',
+                      author: cachedDetail.author || cachedDetail.author_name || '未知作者',
+                      cover: processCoverUrl(rawCover, albumId),
+                      description: cachedDetail.description || cachedDetail.intro || '',
+                      tags: cachedDetail.tags || cachedDetail.tag_list || []
+                    };
+                    restoredComic = basicComic;
+                    await viewDetail(basicComic);
+                  } else {
+                    console.log('[Restore] 无法恢复漫画，缓存中不存在:', viewingComic.id);
+                  }
+                }
+
+                // 如果恢复了漫画，并且有保存的章节信息，则恢复章节
+                if (restoredComic && viewingChapter && viewingChapter.chapterId && viewingChapter.comicId === viewingComic.id) {
+                  // 等待章节列表加载完成
+                  setTimeout(() => {
+                    const foundChapter = chapterList.value.find(ch => ch.id === viewingChapter.chapterId);
+                    if (foundChapter) {
+                      console.log('[Restore] 恢复之前查看的章节:', viewingChapter.chapterId, '图片索引:', viewingChapter.imageIndex);
+                      selectChapter(foundChapter).then(() => {
+                        // 恢复图片索引
+                        if (viewingChapter.imageIndex > 0) {
+                          currentImageIndex.value = viewingChapter.imageIndex;
+                          // 滚动到对应位置
+                          nextTick(() => {
+                            setTimeout(() => {
+                              const scrollContainer = document.querySelector('.n-scrollbar-container');
+                              if (scrollContainer && readingImages.value.length > viewingChapter.imageIndex) {
+                                // 计算目标图片的位置并滚动
+                                const imageItems = scrollContainer.querySelectorAll('.image-item');
+                                if (imageItems[viewingChapter.imageIndex]) {
+                                  imageItems[viewingChapter.imageIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                              }
+                            }, 1000);
+                          });
+                        }
+                      });
+                    } else {
+                      console.log('[Restore] 无法恢复章节，章节列表中不存在:', viewingChapter.chapterId);
+                    }
+                  }, 500);
+                }
+              }, 800); // 增加延迟，确保列表已完全加载
+            }
+          }
+
+          // 延迟 500ms，如果没有数据，则加载模拟数据
+          setTimeout(() => {
+            if (comicList.value.length === 0) {
+              loadMockData();
+            }
+          }, 500);
+
+          nextTick(() => {
+            updateLeftPanelWidth();
+            window.addEventListener('resize', handleResize);
+            // 添加键盘事件监听
+            window.addEventListener('keydown', handleKeyDown);
+            // 使用 ResizeObserver 监听左侧面板宽度变化
+            if (leftPanelRef.value) {
+              let panelEl = null;
+              if (leftPanelRef.value instanceof HTMLElement) {
+                panelEl = leftPanelRef.value;
+              } else if (leftPanelRef.value && typeof leftPanelRef.value === 'object' && '$el' in leftPanelRef.value) {
+                panelEl = leftPanelRef.value.$el;
+              } else if (leftPanelRef.value && typeof leftPanelRef.value === 'object' && 'el' in leftPanelRef.value) {
+                panelEl = leftPanelRef.value.el;
+              }
+
+              if (panelEl && panelEl instanceof Element) {
+                resizeObserver = new ResizeObserver(() => {
+                  updateLeftPanelWidth();
+                });
+                resizeObserver.observe(panelEl);
+              }
+            }
+
+            // 添加滚动监听器，用于更新当前图片索引
+            const setupScrollListener = () => {
+              // 尝试多个可能的滚动容器
+              let scrollContainer = document.querySelector('.n-scrollbar-container');
+              if (!scrollContainer) {
+                scrollContainer = document.querySelector('.n-virtual-list');
+              }
+              if (!scrollContainer) {
+                scrollContainer = document.querySelector('.image-virtual-list');
+              }
+              if (!scrollContainer) {
+                const imageWrapper = document.querySelector('.image-preview-wrapper');
+                if (imageWrapper) {
+                  scrollContainer = imageWrapper.closest('.n-scrollbar-container') ||
+                    imageWrapper.closest('.n-scrollbar') ||
+                    imageWrapper.parentElement;
+                }
+              }
+
+              if (scrollContainer) {
+                // 如果之前有监听器，先移除
+                if (scrollContainerRef && scrollHandler) {
+                  scrollContainerRef.removeEventListener('scroll', scrollHandler);
+                }
+                if (mutationObserver) {
+                  mutationObserver.disconnect();
+                }
+
+                scrollContainerRef = scrollContainer;
+
+                // 使用防抖函数优化性能，但响应更快
+                let scrollTimer = null;
+                scrollHandler = () => {
+                  // 立即更新一次（用于快速响应）
+                  updateCurrentImageIndex();
+                  // 然后防抖更新（用于最终确认）
+                  if (scrollTimer) clearTimeout(scrollTimer);
+                  scrollTimer = setTimeout(() => {
+                    updateCurrentImageIndex();
+                  }, 100);
+                };
+                scrollContainer.addEventListener('scroll', scrollHandler, { passive: true });
+
+                // 监听图片加载，更新索引
+                mutationObserver = new MutationObserver(() => {
+                  updateCurrentImageIndex();
+                });
+                mutationObserver.observe(scrollContainer, { childList: true, subtree: true });
+
+                // 设置图片解码观察器
+                setupImageDecodeObserver(scrollContainer);
+
+                // 初始更新
+                updateCurrentImageIndex();
+              } else {
+                // 如果还没准备好，延迟重试
+                setTimeout(setupScrollListener, 300);
+              }
+            };
+
+            // 延迟设置滚动监听器，确保 DOM 已渲染
+            setTimeout(setupScrollListener, 500);
+
+            // 监听 tab 切换，重新设置滚动监听器
+            watch(rightTab, (newTab) => {
+              if (newTab === 'images') {
+                setTimeout(setupScrollListener, 300);
+              }
+            });
+          });
+        });
+
+        // 清理
+        onUnmounted(() => {
+          window.removeEventListener('resize', handleResize);
+          window.removeEventListener('keydown', handleKeyDown);
+          if (resizeObserver) {
+            resizeObserver.disconnect();
+          }
+          // 清理滚动监听器
+          if (scrollContainerRef && scrollHandler) {
+            scrollContainerRef.removeEventListener('scroll', scrollHandler);
+          }
+          if (mutationObserver) {
+            mutationObserver.disconnect();
+          }
+          if (intersectionObserver) {
+            intersectionObserver.disconnect();
+          }
+          // 清理图片解码观察器
+          cleanupImageDecodeObserver();
+        });
+
+
+
+        // 暗色主题配置
+        const darkTheme = naive.darkTheme;
+
+        return {
+          darkTheme,
+          loading,
+          detailLoading,
+          searchQuery,
+          showSettings,
+          settings,
+          comicList,
+          currentComic,
+          chapterList,
+          currentChapter,
+          readingImages,
+          currentImageIndex,
+          // 章节导航
+          hasPrevChapter,
+          hasNextChapter,
+          // 分页相关
+          currentPage,
+          hasMorePages,
+          totalPages,
+          totalItems,
+          pageSize,
+          autoLoadNextPage,
+          leftColumnCount,
+          leftPanelRef,
+          imageListRef,
+          currentImageIndexProxy,
+          handleImageListScroll,
+          // Tab
+          rightTab,
+          // Split
+          splitSize,
+          // 图片缩放
+          imageScale,
+          // 虚拟列表
+          estimatedImageHeight,
+          handleImageLoad,
+          handleImageError,
+          // n-select 下拉选项
+          proxyUrlOptions,
+          apiDomainOptions,
+          imageDomainOptions,
+          tokenSecretOptions,
+          tokenSecret2Options,
+          dataSecretOptions,
+          appVersionOptions,
+          // Methods
+          goHome,
+          handleSearch,
+          loadNextPage,
+          handleLoad,
+          handlePageChange,
+          handlePageSizeChange,
+          viewDetail,
+          selectChapter,
+          goToPrevChapter,
+          goToNextChapter,
+          updateCurrentImageIndex,
+          toggleRightPanel,
+          toggleLeftPanel,
+          getProxiedUrl,
+          processCoverUrl,
+          handleImgError,
+          saveSettings,
+          resetSettings,
+          clearCache,
+          getCacheCount
+        };
+      }
+    });
+
+    app.use(naive);
+
+    app.mount('#app');
+  </script>
+
+</body>
+
+</html>
+</body>
+
+</html>
