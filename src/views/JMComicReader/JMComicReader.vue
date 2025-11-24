@@ -197,7 +197,7 @@
               <main
                 class="relative bg-[#050505] flex flex-col h-full overflow-hidden"
               >
-                <div
+                <!-- <div
                   v-if="store.detailLoading && store.readingImages.length === 0"
                   class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
                 >
@@ -206,7 +206,7 @@
                     class="mt-4 text-xs text-green-500 font-mono animate-pulse"
                     >正在读取数据流...</span
                   >
-                </div>
+                </div> -->
 
                 <!-- 未选择漫画 -->
                 <div

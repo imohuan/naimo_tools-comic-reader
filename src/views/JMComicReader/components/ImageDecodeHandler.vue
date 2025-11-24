@@ -13,26 +13,42 @@ async function checkBlobUrlAvailable(url: string): Promise<boolean> {
     return false;
   }
 
-  try {
-    // 使用 fetch 检查 blob URL 是否仍然有效
-    const response = await fetch(url, { method: "HEAD" });
-    return response.ok;
-  } catch (error) {
-    // 如果 fetch 失败，尝试使用 Image 对象加载
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-      // 设置超时，避免长时间等待
-      setTimeout(() => resolve(false), 2000);
-      img.src = url;
-    });
-  }
+  // 使用 Image 对象加载来检查 blob URL 是否仍然有效
+  // 这是最可靠的方法，因为 fetch 可能对已 revoke 的 blob URL 仍然返回 ok
+  return new Promise((resolve) => {
+    const img = new Image();
+    let resolved = false;
+
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true;
+      }
+    };
+
+    img.onload = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    img.onerror = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    // 设置超时，避免长时间等待
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    }, 1000);
+
+    img.src = url;
+  });
 }
 
 // 处理图片解码
 async function handleImageDecode(event: ImageDecodeEvent) {
-  debugger;
   if (event.type === "image-loaded") {
     // 找到对应的图片对象
     const imageObj = store.currentChapterImages.find(

@@ -253,9 +253,10 @@ watch(
 // 监听图片列表变化，清理旧的高度缓存并预加载图片
 watch(
   () => store.readingImages,
-  (newImages) => {
-    // 清理旧的高度缓存
+  (newImages, oldImages) => {
+    // 清理旧的高度缓存和图片引用
     itemHeights.value.clear();
+    imageRefs.clear();
 
     // 预加载前几张图片
     if (newImages.length > 0) {

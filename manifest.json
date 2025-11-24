@@ -2,7 +2,7 @@
   "$schema": "./schema.json",
   "id": "comic-reader",
   "name": "漫画阅读",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "imohuan",
   "icon": "./ico.png",
   "description": "本地漫画阅读器，支持多目录扫描和章节浏览",

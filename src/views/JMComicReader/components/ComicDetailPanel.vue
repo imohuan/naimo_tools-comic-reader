@@ -97,6 +97,16 @@ const handleImgError = () => {
 };
 
 const handleSelectChapter = async (chapter: any) => {
+  // 清理旧章节的所有 blob URL
+  if (store.currentChapterImages && store.currentChapterImages.length > 0) {
+    store.currentChapterImages.forEach((imageObj) => {
+      if (imageObj.processedUrl && imageObj.processedUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(imageObj.processedUrl);
+        imageObj.processedUrl = undefined;
+      }
+    });
+  }
+
   store.setCurrentChapter(chapter);
   store.setReadingImages([]);
   store.setCurrentChapterImages([]);
