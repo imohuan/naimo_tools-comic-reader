@@ -65,6 +65,8 @@ const scrollTop = ref(0);
 const imageRefs = new Map<string, HTMLImageElement>();
 const favoriteMap = reactive(new Map<string, string>());
 const favoriteLoading = reactive(new Set<string>());
+const imageSrcMap = ref<Map<string, string>>(new Map());
+const loadingLocalImages = new Set<string>();
 
 // 存储每个item的实际高度
 const itemHeights = ref<Map<string, number>>(new Map());
@@ -76,18 +78,65 @@ const virtualListItems = computed(() => {
     url: img.url,
     index: img.index,
     filename: `image-${img.index + 1}`,
+    path: img.path,
   }));
 });
 
 // 获取图片 src
 function getImageSrc(item: any): string {
+  const cacheKey = item.path || item.url;
+  if (cacheKey && imageSrcMap.value.has(cacheKey)) {
+    return imageSrcMap.value.get(cacheKey)!;
+  }
+
+  if (isLocalImage(item)) {
+    loadLocalImage(cacheKey, item.path);
+  }
+
   return item.url;
 }
 
+function isLocalImage(item: any): boolean {
+  if (!item?.path) return false;
+  return (
+    item.url?.startsWith("file://") && !!window.naimo?.system?.getLocalImage
+  );
+}
+
+function getImageType(filePath: string): string {
+  const ext = filePath.toLowerCase().split(".").pop() || "jpg";
+  const typeMap: Record<string, string> = {
+    jpg: "jpeg",
+    jpeg: "jpeg",
+    png: "png",
+    gif: "gif",
+    webp: "webp",
+    bmp: "bmp",
+  };
+  return typeMap[ext] || "jpeg";
+}
+
+async function loadLocalImage(cacheKey: string, filePath: string) {
+  if (!filePath || !cacheKey) return;
+  if (loadingLocalImages.has(cacheKey)) return;
+  loadingLocalImages.add(cacheKey);
+
+  try {
+    const base64 = await window.naimo.system.getLocalImage(filePath);
+    const dataUrl = `data:image/${getImageType(filePath)};base64,${base64}`;
+    imageSrcMap.value.set(cacheKey, dataUrl);
+  } catch (error) {
+    console.error("加载本地图片失败:", error);
+  } finally {
+    loadingLocalImages.delete(cacheKey);
+  }
+}
+
 // 预加载图片
-function preloadImage(url: string): void {
+function preloadImage(item: any): void {
+  const src = getImageSrc(item);
   const img = new Image();
-  img.src = url;
+  img.src = src;
 }
 
 // 设置图片引用
@@ -171,7 +220,7 @@ async function captureImageArrayBuffer(item: any): Promise<ArrayBuffer> {
   }
 
   // 回退方案：直接通过 fetch 获取图片数据
-  const response = await fetch(item.url);
+  const response = await fetch(getImageSrc(item));
   if (!response.ok) {
     throw new Error("无法获取图片数据");
   }
@@ -345,8 +394,8 @@ function preloadVisibleImages() {
     i <= Math.min(store.readingImages.length - 1, currentIndex + preloadRange);
     i++
   ) {
-    if (store.readingImages[i]?.url) {
-      preloadImage(store.readingImages[i].url);
+    if (store.readingImages[i]) {
+      preloadImage(store.readingImages[i]);
     }
   }
 }
@@ -424,12 +473,14 @@ watch(
     imageRefs.clear();
     favoriteMap.clear();
     favoriteLoading.clear();
+    imageSrcMap.value.clear();
+    loadingLocalImages.clear();
 
     // 预加载前几张图片
     if (newImages.length > 0) {
       const preloadCount = Math.min(5, newImages.length);
       for (let i = 0; i < preloadCount; i++) {
-        preloadImage(newImages[i].url);
+        preloadImage(newImages[i]);
       }
     }
   },

@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useStorage } from "@vueuse/core";
+import { useNaimoStorage } from "@/hooks/useNaimoStorage";
 
 export interface MangaItem {
   name: string;
@@ -32,7 +33,7 @@ export const useComicStore = defineStore("comic", () => {
   const defaultDirs: string[] = [
     // "C:\\Users\\IMOHUAN\\AppData\\Roaming\\com.lanyeeee.jmcomic-downloader\\漫画下载",
   ];
-  const staticDirs = useStorage<string[]>(
+  const staticDirs = useNaimoStorage<string[]>(
     "comic-reader-static-dirs",
     defaultDirs
   );

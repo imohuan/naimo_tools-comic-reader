@@ -32,50 +32,14 @@
           gap: '0.5rem',
         }"
       >
-        <div
+        <ComicListItem
           v-for="item in store.comicList"
           :key="item.id"
-          class="bg-cardbg rounded-lg overflow-hidden hover:ring-2 ring-primary transition cursor-pointer group"
-          :class="{ 'ring-2 ring-primary': store.currentComic?.id === item.id }"
-          @click="$emit('select-comic', item)"
-        >
-          <div class="aspect-[2/3] overflow-hidden relative">
-            <n-image
-              :src="getProxiedUrl(item.cover || '', true)"
-              lazy
-              preview-disabled
-              class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-              :intersection-observer-options="{
-                root: containerRef,
-              }"
-              @error="handleImgError"
-            >
-              <template #placeholder>
-                <div
-                  class="flex items-center justify-center w-full h-full bg-gray-800"
-                >
-                  <n-spin size="small" />
-                </div>
-              </template>
-            </n-image>
-            <div
-              class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2"
-            >
-              <span class="text-xs text-gray-300">{{ item.author }}</span>
-            </div>
-          </div>
-          <div class="p-2 flex flex-col gap-2">
-            <h3 class="text-xs font-bold line-clamp-2 h-8 text-gray-100">
-              {{ item.title }}
-            </h3>
-            <div class="flex justify-between items-center mt-1">
-              <n-tag size="tiny" type="info">{{ item.id }}</n-tag>
-              <span class="text-xs text-gray-500">{{
-                item.date || "最新"
-              }}</span>
-            </div>
-          </div>
-        </div>
+          :comic="item"
+          :is-active="store.currentComic?.id + '' === item.id + ''"
+          :container="containerRef"
+          @select="(comic) => $emit('select-comic', comic)"
+        />
       </div>
       <div
         v-if="store.loading && store.comicList.length > 0"
@@ -101,6 +65,7 @@ import { computed, ref } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { useJMComicStore } from "@/stores/jmcomic";
 import { usePagination } from "@/hooks/usePagination";
+import ComicListItem from "./ComicListItem.vue";
 
 defineEmits<{
   "select-comic": [comic: any];
@@ -125,26 +90,7 @@ const leftColumnCount = computed(() => {
   return Math.max(1, Math.min(columns, 10));
 });
 
-const getProxiedUrl = (url: string, isImage = false): string => {
-  if (!url) return "";
-  if (
-    url.startsWith("data:") ||
-    url.startsWith("blob:") ||
-    url.includes("placeholder")
-  )
-    return url;
-
-  if (store.settings.proxyUrl) {
-    const typeParam = isImage ? "&type=image" : "";
-    return `${store.settings.proxyUrl}${encodeURIComponent(url)}${typeParam}`;
-  }
-
-  return url;
-};
-
-const handleImgError = () => {
-  // 错误处理
-};
+// 图片错误处理逻辑已在子组件中实现，这里保留文件结构即可
 </script>
 
 <style scoped>

@@ -95,12 +95,21 @@
           <h3 class="text-lg font-semibold flex items-center">章节列表</h3>
           <div class="flex items-center gap-2">
             <n-button
+              v-if="store.chapterList.length > 1"
               size="small"
               tertiary
-              :disabled="store.chapterList.length === 0"
               @click="toggleDownloadMode"
             >
               {{ downloadMode ? "退出下载模式" : "下载模式" }}
+            </n-button>
+            <n-button
+              size="small"
+              type="primary"
+              secondary
+              :disabled="store.chapterList.length === 0"
+              @click="handleDownloadAllChapters"
+            >
+              一键全部下载
             </n-button>
           </div>
         </div>
@@ -143,41 +152,32 @@
             ref="downloadGridRef"
           >
             <template v-if="!downloadMode">
-              <button
+              <ChapterListItem
                 v-for="chapter in store.chapterList"
                 :key="chapter.id"
-                class="chapter-item px-4 py-3 bg-gray-700 hover:bg-primary rounded text-sm text-left transition truncate"
-                :class="{
-                  'bg-primary chapter-item--active':
-                    store.currentChapter?.id === chapter.id,
-                }"
-                @click="handleSelectChapter(chapter)"
-              >
-                {{ chapter.title }}
-              </button>
+                :chapter="chapter"
+                :is-active="store.currentChapter?.id === chapter.id"
+                :download-mode="false"
+                :selected="false"
+                :download-info="getChapterDownloadInfo(chapter.id)"
+                @select="() => handleSelectChapter(chapter)"
+              />
             </template>
             <template v-else>
-              <label
+              <ChapterListItem
                 v-for="(chapter, index) in store.chapterList"
                 :key="chapter.id"
-                class="chapter-item flex items-center gap-2 px-3 py-2 bg-gray-800 rounded text-xs cursor-pointer hover:bg-primary transition"
-                :class="{
-                  'chapter-item--active': selectedChapterIds.includes(
-                    chapter.id
-                  ),
-                }"
                 ref="chapterItemEls"
-                @click="(e) => handleChapterClick(chapter, index, e)"
-              >
-                <n-checkbox
-                  :checked="selectedChapterIds.includes(chapter.id)"
-                  @update:checked="(v: boolean) =>
-                    handleSelectChapterForDownload(chapter, v)
-                  "
-                  @click.stop
-                />
-                <span class="truncate">{{ chapter.title }}</span>
-              </label>
+                :chapter="chapter"
+                :is-active="selectedChapterIds.includes(chapter.id)"
+                :download-mode="true"
+                :selected="selectedChapterIds.includes(chapter.id)"
+                :download-info="getChapterDownloadInfo(chapter.id)"
+                @select="(event) => handleChapterClick(chapter, index, event)"
+                @toggle-select="
+                  (v) => handleSelectChapterForDownload(chapter, v)
+                "
+              />
             </template>
             <div
               v-if="isDraggingSelect && dragStart && dragCurrent"
@@ -192,11 +192,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { useMessage } from "naive-ui";
 import { useJMComicStore } from "@/stores/jmcomic";
-import { useJMDownloadStore } from "@/stores/jmDownload";
+import {
+  useJMDownloadStore,
+  type ChapterDownloadItem,
+} from "@/stores/jmDownload";
 import { eventBus } from "@/utils/event-bus";
+import ChapterListItem from "./ChapterListItem.vue";
 
 const store = useJMComicStore();
 const downloadStore = useJMDownloadStore();
@@ -206,7 +210,7 @@ const downloadMode = ref(false);
 const selectedChapterIds = ref<string[]>([]);
 const lastClickedIndex = ref<number | null>(null);
 const downloadGridRef = ref<HTMLElement | null>(null);
-const chapterItemEls = ref<HTMLElement[]>([]);
+const chapterItemEls = ref<any[]>([]);
 const isDraggingSelect = ref(false);
 const dragStart = ref<{ x: number; y: number } | null>(null);
 const dragCurrent = ref<{ x: number; y: number } | null>(null);
@@ -292,6 +296,10 @@ const dragRectStyle = computed(() => {
   };
 });
 
+const getChapterDownloadInfo = (chapterId: string) => {
+  return downloadStore.getChapterDownload(chapterId) || null;
+};
+
 const handleSelectChapterForDownload = (chapter: any, checked: boolean) => {
   const id = chapter.id;
   const current = selectedChapterIds.value.slice();
@@ -339,9 +347,21 @@ const updateDragSelection = () => {
   const y2 = Math.max(dragStart.value.y, dragCurrent.value.y);
 
   const newlySelected: string[] = [];
+  const resolveElement = (target: any): HTMLElement | null => {
+    if (!target) return null;
+    if (typeof target.getElement === "function") {
+      return target.getElement();
+    }
+    if (target.$el) {
+      return target.$el as HTMLElement;
+    }
+    return target as HTMLElement;
+  };
+
   chapterItemEls.value.forEach((el, index) => {
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
+    const element = resolveElement(el);
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     if (cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2) {
@@ -438,6 +458,25 @@ const handleDownloadSelectedChapters = async () => {
   }
 };
 
+const handleDownloadAllChapters = async () => {
+  if (store.chapterList.length === 0) return;
+  const allIds = store.chapterList.map((chapter: any) => chapter.id);
+  try {
+    const success = await downloadStore.startDownload(allIds);
+    if (!success) {
+      message.warning("没有可下载的章节");
+      return;
+    }
+    message.success("所有章节下载任务已开始，在后台进行");
+  } catch (error) {
+    console.error("下载全部章节失败:", error);
+    message.error("下载全部章节失败");
+  } finally {
+    downloadMode.value = false;
+    selectedChapterIds.value = [];
+  }
+};
+
 const handleSelectChapter = async (chapter: any) => {
   // 清理旧章节的所有 blob URL
   if (store.currentChapterImages && store.currentChapterImages.length > 0) {
@@ -456,6 +495,11 @@ const handleSelectChapter = async (chapter: any) => {
   store.setDetailLoading(true);
 
   try {
+    const loadedFromLocal = await tryLoadDownloadedChapter(chapter);
+    if (loadedFromLocal) {
+      return;
+    }
+
     const chapterId = chapter.id;
 
     // 先检查缓存
@@ -491,6 +535,77 @@ const handleSelectChapter = async (chapter: any) => {
     store.setDetailLoading(false);
   }
 };
+
+const tryLoadDownloadedChapter = async (chapter: any) => {
+  const downloadInfo: ChapterDownloadItem | undefined =
+    downloadStore.getChapterDownload(chapter.id);
+
+  if (!downloadInfo || downloadInfo.status !== "completed") {
+    return false;
+  }
+
+  const images = await downloadStore.getDownloadedChapterImages(chapter.id);
+  if (!images || images.length === 0) {
+    message.warning("本地下载内容为空，尝试在线读取");
+    return false;
+  }
+
+  const normalized = images.map((img: any, idx: number) => {
+    const filename = img.filename || `image-${idx + 1}.jpg`;
+    return {
+      url: img.url,
+      path: img.path,
+      filename,
+      index: idx,
+    };
+  });
+
+  store.setCurrentChapterImages(
+    normalized.map((img) => ({
+      url: img.url,
+      filename: img.filename,
+      filenameWithoutExt: img.filename.replace(/\.[^.]+$/, ""),
+      blockNum: 0,
+      index: img.index,
+      localPath: img.path,
+    }))
+  );
+
+  store.setReadingImages(
+    normalized.map((img) => ({
+      url: img.url,
+      index: img.index,
+      path: img.path,
+    }))
+  );
+
+  eventBus.emit("chapter-selected", {
+    chapterId: chapter.id,
+  });
+  message.success("已加载本地下载章节");
+  return true;
+};
+
+watch(
+  () => ({
+    comicTitle: store.currentComic?.title,
+    chapters: (store.chapterList || []).map((chapter: any) => ({
+      id: chapter.id,
+      title: chapter.title,
+    })),
+  }),
+  (payload) => {
+    if (!payload.comicTitle || !payload.chapters) return;
+    payload.chapters.forEach((chapter) => {
+      downloadStore.ensureLocalDownloadRecord(
+        chapter.id,
+        chapter.title,
+        payload.comicTitle as string
+      );
+    });
+  },
+  { immediate: true, deep: true }
+);
 </script>
 
 <style scoped>

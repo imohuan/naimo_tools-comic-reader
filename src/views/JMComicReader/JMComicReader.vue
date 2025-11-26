@@ -310,6 +310,7 @@ const imageViewerRef = ref<InstanceType<typeof JMImageViewer> | null>(null);
 const splitSize = ref(0.2); // 默认左侧占 20%
 const showDownloadManager = ref(false);
 const downloadChapterIds = ref<string[]>([]);
+const isRestoring = ref(true);
 
 // 监听 rightTab 变化并保存
 watch(
@@ -346,6 +347,9 @@ onKeyStroke("Tab", (e) => {
 watch(
   () => store.currentChapter,
   (chapter) => {
+    if (isRestoring.value) {
+      return;
+    }
     if (chapter) {
       rightTab.value = "images";
     }
@@ -739,6 +743,7 @@ onMounted(async () => {
   if (store.autoScroll && rightTab.value === "images") {
     startAutoScroll();
   }
+  isRestoring.value = false;
   // 注册快捷键
   window.addEventListener("keydown", handleKeydown);
 });

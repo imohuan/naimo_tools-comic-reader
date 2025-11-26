@@ -4,7 +4,7 @@ import { useStorage } from "@vueuse/core";
 import { useJMComicStore } from "./jmcomic";
 import type { ChapterImage } from "@/utils/comic-api";
 
-type ChapterStatus =
+export type ChapterStatus =
   | "pending"
   | "fetching"
   | "queued"
@@ -12,7 +12,7 @@ type ChapterStatus =
   | "completed"
   | "error";
 
-interface ChapterDownloadItem {
+export interface ChapterDownloadItem {
   chapterId: string;
   chapterTitle: string;
   comicTitle: string;
@@ -21,6 +21,8 @@ interface ChapterDownloadItem {
   finished: number;
   error?: string;
   createdAt: number;
+  comicDirName: string;
+  chapterDirName: string;
 }
 
 interface ImageDownloadTask {
@@ -57,6 +59,11 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
 
   const activeFetchCount = ref(0);
   const activeDownloadCount = ref(0);
+  const downloadRoot = ref<string>("");
+  const pendingLocalChecks = new Map<
+    string,
+    Promise<ChapterDownloadItem | null>
+  >();
 
   const fetchConcurrencyStorage = useStorage("jm-fetch-concurrency", 2);
   const fetchConcurrency = computed({
@@ -131,13 +138,23 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
 
   const resolveDownloadDirectory = async (): Promise<string> => {
     const manualDir = (comicStore.settings as any).downloadDir;
-    if (manualDir) return manualDir;
+    if (manualDir) {
+      downloadRoot.value = manualDir;
+      return manualDir;
+    }
+
+    if (downloadRoot.value) {
+      return downloadRoot.value;
+    }
 
     const naimo = (globalThis as any).naimo;
     if (naimo?.system?.getPath) {
       try {
         const dir = await naimo.system.getPath("downloads");
-        if (dir) return dir;
+        if (dir) {
+          downloadRoot.value = dir;
+          return dir;
+        }
       } catch (error) {
         console.warn("获取系统下载目录失败:", error);
       }
@@ -334,14 +351,17 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
       const chapterInfo =
         comicStore.chapterList?.find((chapter: any) => chapter.id === id) ||
         null;
+      const chapterTitle = chapterInfo?.title || `章节 ${id}`;
       chapterDownloads[id] = {
         chapterId: id,
-        chapterTitle: chapterInfo?.title || `章节 ${id}`,
+        chapterTitle,
         comicTitle,
         status: "pending",
         total: 0,
         finished: 0,
         createdAt: Date.now(),
+        comicDirName: sanitizeSegment(comicTitle),
+        chapterDirName: sanitizeSegment(chapterTitle),
       };
       fetchQueue.value.push(id);
       added = true;
@@ -377,6 +397,84 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
     }
   );
 
+  const ensureLocalDownloadRecord = async (
+    chapterId: string,
+    chapterTitle: string,
+    comicTitle: string
+  ): Promise<ChapterDownloadItem | null> => {
+    if (!chapterId || !chapterTitle || !comicTitle) return null;
+    if (chapterDownloads[chapterId]) {
+      return chapterDownloads[chapterId];
+    }
+
+    const pending = pendingLocalChecks.get(chapterId);
+    if (pending) return pending;
+
+    const promise = (async () => {
+      try {
+        const baseDir = await resolveDownloadDirectory();
+        if (!window.comicReaderAPI?.getChapterImages) {
+          return null;
+        }
+        const comicDirName = sanitizeSegment(comicTitle);
+        const chapterDirName = sanitizeSegment(chapterTitle);
+        const images = await window.comicReaderAPI.getChapterImages(
+          [baseDir],
+          comicDirName,
+          chapterDirName
+        );
+        if (images && images.length > 0) {
+          chapterDownloads[chapterId] = {
+            chapterId,
+            chapterTitle,
+            comicTitle,
+            status: "completed",
+            total: images.length,
+            finished: images.length,
+            createdAt: Date.now(),
+            comicDirName,
+            chapterDirName,
+          };
+          return chapterDownloads[chapterId];
+        }
+      } catch (error) {
+        console.warn("检测本地章节失败:", error);
+      } finally {
+        pendingLocalChecks.delete(chapterId);
+      }
+      return null;
+    })();
+
+    pendingLocalChecks.set(chapterId, promise);
+    return promise;
+  };
+
+  const getChapterDownload = (chapterId: string) => chapterDownloads[chapterId];
+
+  const getDownloadedChapterImages = async (chapterId: string) => {
+    const chapter = chapterDownloads[chapterId];
+    if (!chapter || chapter.status !== "completed") {
+      return null;
+    }
+
+    const baseDir = await resolveDownloadDirectory();
+    if (!window.comicReaderAPI?.getChapterImages) {
+      return null;
+    }
+
+    try {
+      const images = await window.comicReaderAPI.getChapterImages(
+        [baseDir],
+        chapter.comicDirName,
+        chapter.chapterDirName
+      );
+      return images;
+    } catch (error) {
+      console.error("读取已下载章节失败:", error);
+      return null;
+    }
+  };
+
   return {
     downloadInProgress,
     fetchConcurrency,
@@ -386,5 +484,9 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
     finishedChapters,
     startDownload,
     deleteDownload,
+    chapterDownloads,
+    getChapterDownload,
+    getDownloadedChapterImages,
+    ensureLocalDownloadRecord,
   };
 });

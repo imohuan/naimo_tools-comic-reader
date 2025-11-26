@@ -95,7 +95,9 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   });
   const currentComic = ref<ComicDetail | null>(null);
   const currentChapter = ref<ChapterItem | null>(null);
-  const readingImages = ref<Array<{ url: string; index: number }>>([]);
+  const readingImages = ref<
+    Array<{ url: string; index: number; path?: string }>
+  >([]);
   const currentChapterImages = ref<ChapterImage[]>([]);
   const detailLoading = ref(false);
 
@@ -250,7 +252,9 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     readingState.value.currentChapterId = chapter?.id || null;
   }
 
-  function setReadingImages(images: Array<{ url: string; index: number }>) {
+  function setReadingImages(
+    images: Array<{ url: string; index: number; path?: string }>
+  ) {
     readingImages.value = images;
   }
 

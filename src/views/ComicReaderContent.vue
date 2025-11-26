@@ -487,11 +487,6 @@ onMounted(async () => {
     });
   }
 
-  // 如果有已配置的目录，自动加载
-  if (store.staticDirs.length > 0) {
-    await loadMangaList();
-  }
-
   // 如果自动滚动开启，启动它
   if (store.autoScroll) {
     startAutoScroll();
@@ -500,6 +495,13 @@ onMounted(async () => {
   if (window.naimo) {
     window.naimo.log.info("漫画阅读器初始化完成");
   }
+
+  setTimeout(async () => {
+    // 如果有已配置的目录，自动加载
+    if (store.staticDirs.length > 0) {
+      await loadMangaList();
+    }
+  }, 100);
 });
 
 onUnmounted(() => {
