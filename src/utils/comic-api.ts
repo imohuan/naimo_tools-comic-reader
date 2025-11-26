@@ -9,6 +9,7 @@ export interface ComicAPISettings {
   appDataSecret?: string;
   appVersion?: string;
   proxyUrl?: string;
+  downloadDir?: string;
 }
 
 export interface ComicItem {
@@ -279,13 +280,15 @@ export class ComicAPI {
     };
 
     const response = await this.apiRequest("/search", "GET", params);
-    // console.log("search response", response);
+    console.log({ search: response });
     return response;
   }
 
   async getComic(aid: string): Promise<any> {
     const params = { id: aid };
     const response = await this.apiRequest("/album", "GET", params);
+    console.log({ getComic: response });
+
     return response.data || response;
   }
 

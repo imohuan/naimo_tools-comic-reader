@@ -88,32 +88,6 @@
                   {{ store.autoScroll ? "停止滚动" : "自动滚动" }}
                 </n-button>
 
-                <!-- 设置按钮 -->
-                <n-button size="small" @click="store.toggleSettings()">
-                  <template #icon>
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                      ></path>
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      ></path>
-                    </svg>
-                  </template>
-                  设置
-                </n-button>
-
                 <n-button size="small" @click="handleRefresh">刷新</n-button>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-gray-400">缩放</span>
@@ -159,6 +133,40 @@
                   图片预览
                 </button>
               </div>
+
+              <!-- 设置按钮 -->
+              <n-button size="small" @click="store.toggleSettings()">
+                <template #icon>
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    ></path>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    ></path>
+                  </svg>
+                </template>
+                设置
+              </n-button>
+
+              <n-button
+                size="small"
+                :disabled="!store.currentComic?.id"
+                @click="showDownloadManager = true"
+              >
+                下载
+              </n-button>
 
               <n-button size="small" @click="goToHome">主页</n-button>
             </div>
@@ -257,6 +265,13 @@
             </template>
           </n-split>
 
+          <!-- 下载管理弹窗 -->
+          <JMDownloadPanel
+            :show="showDownloadManager"
+            :chapter-ids="downloadChapterIds"
+            @update:show="(val: boolean) => (showDownloadManager = val)"
+          />
+
           <!-- 设置面板 -->
           <JMSettingsPanel
             :show="store.showSettings"
@@ -279,6 +294,7 @@ import SearchBar from "./components/SearchBar.vue";
 import ComicList from "./components/ComicList.vue";
 import PaginationBar from "./components/PaginationBar.vue";
 import JMSettingsPanel from "./components/JMSettingsPanel.vue";
+import JMDownloadPanel from "./components/JMDownloadPanel.vue";
 import JMImageViewer from "./components/JMImageViewer.vue";
 import ImageDecodeHandler from "./components/ImageDecodeHandler.vue";
 import ComicDetailPanel from "./components/ComicDetailPanel.vue";
@@ -292,6 +308,8 @@ const sidebarCollapsed = ref(false);
 const rightTab = ref<"detail" | "images">("detail");
 const imageViewerRef = ref<InstanceType<typeof JMImageViewer> | null>(null);
 const splitSize = ref(0.2); // 默认左侧占 20%
+const showDownloadManager = ref(false);
+const downloadChapterIds = ref<string[]>([]);
 
 // 监听 rightTab 变化并保存
 watch(
@@ -337,6 +355,14 @@ watch(
 // 监听章节选择事件，切换到图片预览
 eventBus.on("chapter-selected", () => {
   rightTab.value = "images";
+});
+
+// 监听详情面板发出的下载事件，打开下载管理并传入章节列表
+eventBus.on("jm-download" as any, (payload: { chapterIds: string[] }) => {
+  downloadChapterIds.value = payload.chapterIds || [];
+  if (downloadChapterIds.value.length > 0) {
+    showDownloadManager.value = true;
+  }
 });
 
 // 当侧边栏折叠/展开时，调整 split 大小

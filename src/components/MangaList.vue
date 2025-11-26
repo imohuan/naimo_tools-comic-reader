@@ -7,7 +7,7 @@
       暂无数据
     </div>
 
-    <n-scrollbar class="menu">
+    <n-scrollbar class="menu" @click="contextMenuVisible = false">
       <div class="p-2 pr-3">
         <template v-for="manga in store.mangas" :key="manga.name">
           <!-- 单章节漫画 -->
@@ -26,6 +26,7 @@
                   manga.meta.chapterInfos[0].chapterTitle
                 )
               "
+              @contextmenu.prevent="openContextMenu($event, manga)"
             >
               <div
                 class="w-12 h-16 bg-gray-800 rounded-sm overflow-hidden border border-white/10 flex items-center justify-center flex-shrink-0 relative"
@@ -73,7 +74,10 @@
           >
             <n-collapse-item :name="manga.name" class="w-full">
               <template #header>
-                <div class="flex items-center gap-2 w-full">
+                <div
+                  class="flex items-center gap-2 w-full"
+                  @contextmenu.prevent="openContextMenu($event, manga)"
+                >
                   <div
                     class="w-12 h-16 bg-gray-800 rounded-sm overflow-hidden border border-white/10 flex items-center justify-center flex-shrink-0 relative"
                   >
@@ -137,11 +141,22 @@
         </template>
       </div>
     </n-scrollbar>
+
+    <n-dropdown
+      placement="bottom-start"
+      trigger="manual"
+      :show="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :options="contextMenuOptions"
+      @select="handleContextMenuSelect"
+      @clickoutside="contextMenuVisible = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import { NImage } from "naive-ui";
 import { useComicStore } from "../stores/comic";
 import type { MangaItem } from "../stores/comic";
@@ -235,6 +250,17 @@ async function loadCoverImage(manga: MangaItem) {
   }
 }
 
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const contextMenuVisible = ref(false);
+const contextMenuManga = ref<MangaItem | null>(null);
+const contextMenuOptions = ref<
+  Array<{
+    label: string;
+    key: "pin" | "delete" | "openFolder";
+  }>
+>([]);
+
 function getExpandedName(manga: (typeof store.mangas)[0]) {
   if (store.currentManga?.name === manga.name && store.currentChapter) {
     return manga.name;
@@ -287,6 +313,53 @@ async function loadChapter(
   } finally {
     store.setLoading("chapter", false);
   }
+}
+
+function openContextMenu(event: MouseEvent, manga: MangaItem) {
+  event.preventDefault();
+  contextMenuManga.value = manga;
+  contextMenuX.value = event.clientX;
+  contextMenuY.value = event.clientY;
+
+  contextMenuOptions.value = [
+    {
+      label: "顶置",
+      key: "pin",
+    },
+    {
+      label: "打开文件夹",
+      key: "openFolder",
+    },
+    {
+      label: "删除",
+      key: "delete",
+    },
+  ];
+
+  contextMenuVisible.value = true;
+}
+
+async function handleContextMenuSelect(key: "pin" | "delete" | "openFolder") {
+  const manga = contextMenuManga.value;
+  if (!manga) return;
+
+  if (key === "pin") {
+    await store.pinManga(manga.name);
+  } else if (key === "openFolder") {
+    try {
+      const staticDirsArray = [...store.staticDirs].map((dir) => String(dir));
+      await window.comicReaderAPI.openMangaFolder(staticDirsArray, manga.name);
+    } catch (error) {
+      console.error("打开文件夹失败", error);
+      if (window.$message) {
+        window.$message.error("打开文件夹失败");
+      }
+    }
+  } else if (key === "delete") {
+    await store.deleteManga(manga.name);
+  }
+
+  contextMenuVisible.value = false;
 }
 </script>
 

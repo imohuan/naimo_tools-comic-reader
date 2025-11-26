@@ -22,7 +22,15 @@ export default defineConfig({
     sourcemap: false,
     minify: false, // 不压缩，便于调试
     rollupOptions: {
-      external: ["electron", "https", "crypto", "fs", "fs/promises", "path"],
+      external: [
+        "electron",
+        "https",
+        "crypto",
+        "fs",
+        "fs/promises",
+        "path",
+        "buffer",
+      ],
       output: {
         format: "cjs",
         exports: "auto",

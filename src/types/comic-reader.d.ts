@@ -21,6 +21,22 @@ export interface ImageItem {
   filename: string;
   url: string;
   path: string;
+  /**
+   * 图片最后修改时间（毫秒）
+   */
+  mtimeMs?: number;
+}
+
+export interface FavoriteSaveOptions {
+  staticDirs: string[];
+  filename: string;
+  sourcePath?: string;
+  data?: BufferSource;
+}
+
+export interface FavoriteRemoveOptions {
+  staticDirs: string[];
+  filename: string;
 }
 
 export interface ComicReaderAPI {
@@ -36,6 +52,11 @@ export interface ComicReaderAPI {
   ): Promise<Array<{ name: string; image_count: number }>>;
   selectMangaDirectory(): Promise<string | null>;
   openFolder(folderPath: string): Promise<void>;
+  openMangaFolder(staticDirs: string[], mangaName: string): Promise<void>;
+  deleteMangaFolder(staticDirs: string[], mangaName: string): Promise<void>;
+  updateFolderTimestamp(staticDirs: string[], mangaName: string): Promise<void>;
+  saveImageToFavorites(options: FavoriteSaveOptions): Promise<string>;
+  removeFavoriteImage(options: FavoriteRemoveOptions): Promise<void>;
 }
 
 declare global {

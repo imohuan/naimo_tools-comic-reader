@@ -118,6 +118,24 @@
           />
         </div>
 
+        <n-divider>下载设置</n-divider>
+        <div>
+          <label class="block text-sm font-medium mb-1">下载目录</label>
+          <div class="flex items-center gap-2">
+            <n-input
+              v-model:value="localSettings.downloadDir"
+              placeholder="未设置时使用系统下载目录"
+              readonly
+            />
+            <n-button size="small" @click="handleSelectDownloadDir">
+              选择目录
+            </n-button>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">
+            用于批量下载章节图片时的保存位置。
+          </p>
+        </div>
+
         <n-divider>快捷键设置</n-divider>
         <div>
           <n-space vertical :size="16">
@@ -266,8 +284,22 @@ const resetSettings = () => {
     appTokenSecret2: "18comicAPPContent",
     appDataSecret: "185Hcomic3PAPP7R",
     appVersion: "1.7.5",
+    downloadDir: "",
   };
   message.info("已重置为默认设置");
+};
+
+const handleSelectDownloadDir = async () => {
+  try {
+    const dir = await naimo.download.selectDownloadDirectory();
+    if (dir) {
+      (localSettings.value as any).downloadDir = dir;
+      message.success("已选择下载目录");
+    }
+  } catch (error) {
+    console.error("选择下载目录失败:", error);
+    message.error("选择下载目录失败");
+  }
 };
 
 const clearCache = (type?: "details" | "chapters") => {

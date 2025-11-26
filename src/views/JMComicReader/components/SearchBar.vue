@@ -79,7 +79,7 @@
       @click="handleSearchClick"
       size="medium"
       color="#ec4899"
-      class="search-btn transition-all duration-200 text-white"
+      class="search-btn transition-all duration-200 text-white!"
     >
       搜索
     </n-button>

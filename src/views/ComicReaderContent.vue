@@ -188,9 +188,11 @@ import { useMessage } from "naive-ui";
 import { onKeyStroke } from "@vueuse/core";
 import { useRouter } from "vue-router";
 import { useComicStore } from "@/stores/comic";
+import type { ImageItem, MangaItem } from "@/stores/comic";
 import MangaList from "@/components/MangaList.vue";
 import ImageViewer from "@/components/ImageViewer.vue";
 import SettingsPanel from "@/components/SettingsPanel.vue";
+import { BOOKMARKS_DIR_NAME } from "@/utils/favorite-utils";
 
 // 在子组件中使用 useMessage，此时 MessageProvider 已经挂载
 const message = useMessage();
@@ -219,6 +221,7 @@ async function loadMangaList() {
     const staticDirsArray = [...store.staticDirs].map((dir) => String(dir));
     const mangas = await window.comicReaderAPI.getMangaList(staticDirsArray);
     store.setMangas(mangas);
+    await refreshCurrentSelection(mangas);
   } catch (error) {
     console.error("加载漫画列表失败:", error);
     message.error("加载漫画列表失败");
@@ -395,13 +398,59 @@ async function loadChapter(
       String(manga.name),
       String(chapterTitle)
     );
-    store.setCurrentImages(images);
+    store.setCurrentImages(sortImagesByTimeIfNeeded(manga.name, images ?? []));
   } catch (error) {
     console.error("加载章节失败:", error);
     message.error("加载章节失败");
   } finally {
     store.setLoading("chapter", false);
   }
+}
+
+function sortImagesByTimeIfNeeded(
+  mangaName: string | undefined,
+  images: ImageItem[]
+): ImageItem[] {
+  if (mangaName !== BOOKMARKS_DIR_NAME) {
+    return images;
+  }
+  return [...images].sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0));
+}
+
+async function refreshCurrentSelection(latestMangas: MangaItem[]) {
+  const selectedName = store.currentManga?.name;
+  if (!selectedName) {
+    return;
+  }
+
+  const updatedManga = latestMangas.find((item) => item.name === selectedName);
+  if (!updatedManga) {
+    store.setCurrentManga(null);
+    store.setCurrentChapter("");
+    store.setCurrentImages([]);
+    return;
+  }
+
+  const previousChapter = store.currentChapter;
+  store.setCurrentManga(updatedManga);
+
+  if (!previousChapter) {
+    return;
+  }
+
+  const hasSameChapter = updatedManga.meta.chapterInfos.some(
+    (ch) => ch.chapterTitle === previousChapter
+  );
+  const fallbackChapter = updatedManga.meta.chapterInfos[0]?.chapterTitle;
+  const targetChapter = hasSameChapter ? previousChapter : fallbackChapter;
+
+  if (targetChapter) {
+    await loadChapter(updatedManga, targetChapter);
+    return;
+  }
+
+  store.setCurrentChapter("");
+  store.setCurrentImages([]);
 }
 
 // Tab 键切换侧边栏

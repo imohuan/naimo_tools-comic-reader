@@ -12,3 +12,7 @@
 .n-scrollbar-rail .n-scrollbar-scrollbar .n-scrollbar-handle {
   min-width: 8px !important;
 }
+
+img {
+  pointer-events: none;
+}

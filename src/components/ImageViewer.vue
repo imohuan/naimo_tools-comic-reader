@@ -17,11 +17,19 @@
     >
       <template #default="{ item }">
         <div
-          class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0"
+          class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0 relative"
           :style="{
             transform: `rotate(${store.rotation}deg)`,
           }"
         >
+          <div class="absolute top-3 left-3 z-10 flex">
+            <FavoriteToggle
+              :favorited="isItemFavorited(item.key)"
+              :loading="isFavoriteBusy(item.key)"
+              @add="handleFavoriteAdd(item)"
+              @remove="handleFavoriteRemoval(item)"
+            />
+          </div>
           <img
             :ref="(el) => setImageRef(el, item)"
             :src="getImageSrcSync(item)"
@@ -43,12 +51,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from "vue";
-import { NVirtualList } from "naive-ui";
+import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
+import { NVirtualList, useMessage } from "naive-ui";
+import FavoriteToggle from "@/components/FavoriteToggle.vue";
 import { useComicStore } from "../stores/comic";
 import type { ImageItem } from "../stores/comic";
+import {
+  BOOKMARKS_DIR_NAME,
+  buildFavoriteFilename,
+} from "@/utils/favorite-utils";
 
 const store = useComicStore();
+const message = useMessage();
 const viewerContainer = ref<HTMLElement | null>(null);
 const virtualListRef = ref<any>(null);
 const scrollContainerRef = ref<HTMLElement | null>(null);
@@ -56,6 +70,11 @@ const estimatedItemHeight = ref(800);
 const scrollTop = ref(0);
 const isLoadingNextChapter = ref(false);
 let loadNextChapterTimer: number | null = null;
+const favoriteMap = reactive(new Map<string, string>());
+const favoriteLoading = reactive(new Set<string>());
+const isFavoritesView = computed(
+  () => store.currentManga?.name === BOOKMARKS_DIR_NAME
+);
 
 // 存储每个item的实际高度
 const itemHeights = ref<Map<string, number>>(new Map());
@@ -191,6 +210,98 @@ function setImageRef(el: any, item: any) {
     }
   } else if (!el && item) {
     imageRefs.delete(item.key);
+  }
+}
+
+function isItemFavorited(key: string): boolean {
+  return favoriteMap.has(key);
+}
+
+function isFavoriteBusy(key: string): boolean {
+  return favoriteLoading.has(key);
+}
+
+function getConfiguredStaticDirs(): string[] {
+  return (store.staticDirs || [])
+    .map((dir) => String(dir || "").trim())
+    .filter((dir) => dir);
+}
+
+async function handleFavoriteAdd(item: any) {
+  const key = item.key;
+  const dirs = getConfiguredStaticDirs();
+  if (dirs.length === 0) {
+    message.warning("请先在设置中配置本地目录");
+    return;
+  }
+
+  if (favoriteLoading.has(key)) {
+    return;
+  }
+
+  const favoriteFilename = buildFavoriteFilename({
+    comicTitle: store.currentManga?.name || "本地漫画",
+    chapterTitle: store.currentChapter || "章节",
+    originalName: item.filename,
+    index: item.index + 1,
+  });
+
+  favoriteLoading.add(key);
+
+  try {
+    if (!item.path) {
+      throw new Error("图片路径不可用");
+    }
+    await window.comicReaderAPI.saveImageToFavorites({
+      staticDirs: dirs,
+      filename: favoriteFilename,
+      sourcePath: item.path,
+    });
+    favoriteMap.set(key, favoriteFilename);
+    message.success("已添加收藏");
+  } catch (error: any) {
+    console.error("收藏图片失败:", error);
+    message.error(error?.message || "收藏失败");
+  } finally {
+    favoriteLoading.delete(key);
+  }
+}
+
+async function handleFavoriteRemoval(item: any) {
+  const key = item.key;
+  const dirs = getConfiguredStaticDirs();
+  if (dirs.length === 0) {
+    message.warning("请先在设置中配置本地目录");
+    return;
+  }
+
+  if (favoriteLoading.has(key)) {
+    return;
+  }
+
+  const filename =
+    favoriteMap.get(key) ||
+    buildFavoriteFilename({
+      comicTitle: store.currentManga?.name || "本地漫画",
+      chapterTitle: store.currentChapter || "章节",
+      originalName: item.filename,
+      index: item.index + 1,
+    });
+
+  favoriteLoading.add(key);
+
+  try {
+    await window.comicReaderAPI.removeFavoriteImage({
+      staticDirs: dirs,
+      filename,
+    });
+    favoriteMap.delete(key);
+    message.success("已取消收藏");
+  } catch (error: any) {
+    console.error("取消收藏失败:", error);
+    message.error(error?.message || "操作失败");
+  } finally {
+    favoriteLoading.delete(key);
   }
 }
 
@@ -374,16 +485,23 @@ watch(
 
 // 监听图片列表变化，预加载可见区域的图片
 watch(
-  () => store.currentImages,
-  (newImages) => {
-    // 清理旧的高度缓存
+  virtualListItems,
+  (items) => {
     itemHeights.value.clear();
+    imageRefs.clear();
+    favoriteMap.clear();
+    favoriteLoading.clear();
 
-    // 预加载前几张图片
-    if (newImages.length > 0) {
-      const preloadCount = Math.min(5, newImages.length);
+    if (isFavoritesView.value && items.length > 0) {
+      items.forEach((item) => {
+        favoriteMap.set(item.key, item.filename);
+      });
+    }
+
+    if (items.length > 0) {
+      const preloadCount = Math.min(5, items.length);
       for (let i = 0; i < preloadCount; i++) {
-        loadImageAsync(newImages[i]);
+        loadImageAsync(items[i]);
       }
     }
   },

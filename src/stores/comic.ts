@@ -23,6 +23,7 @@ export interface ImageItem {
   filename: string;
   url: string;
   path: string;
+  mtimeMs?: number;
 }
 
 export const useComicStore = defineStore("comic", () => {
@@ -134,6 +135,48 @@ export const useComicStore = defineStore("comic", () => {
     showSettings.value = !showSettings.value;
   }
 
+  async function pinManga(name: string) {
+    const dirs = [...staticDirs.value].map((d) => String(d));
+    try {
+      await window.comicReaderAPI.updateFolderTimestamp(dirs, name);
+      if (window.$message) {
+        window.$message.success(`已顶置：${name}`);
+      }
+      if (window.$loadMangaList) {
+        await window.$loadMangaList();
+      }
+    } catch (error) {
+      console.error("顶置漫画失败:", error);
+      if (window.$message) {
+        window.$message.error("顶置失败");
+      }
+    }
+  }
+
+  async function deleteManga(name: string) {
+    const dirs = [...staticDirs.value].map((d) => String(d));
+    try {
+      await window.comicReaderAPI.deleteMangaFolder(dirs, name);
+      if (window.$message) {
+        window.$message.success(`已删除漫画：${name}`);
+      }
+      if (currentManga.value?.name === name) {
+        currentManga.value = null;
+        currentChapter.value = "";
+        currentImages.value = [];
+        currentPage.value = 0;
+      }
+      if (window.$loadMangaList) {
+        await window.$loadMangaList();
+      }
+    } catch (error) {
+      console.error("删除漫画失败:", error);
+      if (window.$message) {
+        window.$message.error("删除失败");
+      }
+    }
+  }
+
   return {
     // State
     staticDirs,
@@ -171,5 +214,7 @@ export const useComicStore = defineStore("comic", () => {
     setAutoScrollSpeed,
     setRotation,
     toggleSettings,
+    pinManga,
+    deleteManga,
   };
 });

@@ -52,6 +52,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     appTokenSecret2: "18comicAPPContent",
     appDataSecret: "185Hcomic3PAPP7R",
     appVersion: "1.7.5",
+    downloadDir: "",
   });
 
   // 初始化 API
