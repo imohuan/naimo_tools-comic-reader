@@ -39,6 +39,14 @@ export interface FavoriteRemoveOptions {
   filename: string;
 }
 
+export interface SaveDownloadImageOptions {
+  baseDir: string;
+  comicTitle: string;
+  chapterTitle: string;
+  filename: string;
+  data: ArrayBuffer | Uint8Array | Buffer;
+}
+
 export interface ComicReaderAPI {
   getMangaList(staticDirs: string[]): Promise<MangaItem[]>;
   getChapterImages(
@@ -57,6 +65,7 @@ export interface ComicReaderAPI {
   updateFolderTimestamp(staticDirs: string[], mangaName: string): Promise<void>;
   saveImageToFavorites(options: FavoriteSaveOptions): Promise<string>;
   removeFavoriteImage(options: FavoriteRemoveOptions): Promise<void>;
+  saveDownloadImage(options: SaveDownloadImageOptions): Promise<string>;
 }
 
 declare global {

@@ -30,6 +30,51 @@
         JM ID: {{ store.currentComic?.id }}
       </p>
 
+      <!-- 统计信息 -->
+      <div v-if="hasStats" class="flex items-center gap-4 mb-4 text-sm">
+        <div
+          v-if="store.currentComic?.likes"
+          class="flex items-center gap-1.5 text-gray-300"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-4 h-4 text-red-400"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+            />
+          </svg>
+          <span>{{ formatNumber(store.currentComic.likes) }}</span>
+        </div>
+        <div
+          v-if="store.currentComic?.total_views"
+          class="flex items-center gap-1.5 text-gray-300"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="w-4 h-4 text-blue-400"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            />
+          </svg>
+          <span>{{ formatNumber(store.currentComic.total_views) }}</span>
+        </div>
+      </div>
+
       <div class="flex flex-wrap gap-2 mb-4">
         <n-tag
           v-for="tag in store.currentComic?.tags"
@@ -85,12 +130,10 @@
               <n-button
                 type="primary"
                 size="tiny"
-                :disabled="
-                  selectedChapterIds.length === 0 || downloadInProgress
-                "
+                :disabled="selectedChapterIds.length === 0"
                 @click="handleDownloadSelectedChapters"
               >
-                {{ downloadInProgress ? "下载中..." : "开始下载" }}
+                开始下载
               </n-button>
             </div>
           </div>
@@ -152,9 +195,11 @@
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { useMessage } from "naive-ui";
 import { useJMComicStore } from "@/stores/jmcomic";
+import { useJMDownloadStore } from "@/stores/jmDownload";
 import { eventBus } from "@/utils/event-bus";
 
 const store = useJMComicStore();
+const downloadStore = useJMDownloadStore();
 const message = useMessage();
 
 const downloadMode = ref(false);
@@ -165,7 +210,6 @@ const chapterItemEls = ref<HTMLElement[]>([]);
 const isDraggingSelect = ref(false);
 const dragStart = ref<{ x: number; y: number } | null>(null);
 const dragCurrent = ref<{ x: number; y: number } | null>(null);
-const downloadInProgress = ref(false);
 
 const getProxiedUrl = (url: string, isImage = false): string => {
   if (!url) return "";
@@ -186,6 +230,27 @@ const getProxiedUrl = (url: string, isImage = false): string => {
 
 const handleImgError = () => {
   // 错误处理
+};
+
+const hasStats = computed(() => {
+  return (
+    (store.currentComic?.likes !== undefined &&
+      store.currentComic?.likes !== null &&
+      store.currentComic?.likes !== "") ||
+    (store.currentComic?.total_views !== undefined &&
+      store.currentComic?.total_views !== null &&
+      store.currentComic?.total_views !== "")
+  );
+});
+
+const formatNumber = (value: string | number | undefined): string => {
+  if (value === undefined || value === null || value === "") return "0";
+  const num = typeof value === "string" ? parseInt(value, 10) : value;
+  if (isNaN(num)) return "0";
+  if (num >= 10000) {
+    return (num / 10000).toFixed(1) + "万";
+  }
+  return num.toLocaleString();
 };
 
 const toggleDownloadMode = () => {
@@ -352,138 +417,22 @@ const handleToggleSelectAll = () => {
   }
 };
 
-const sanitizeFilename = (name: string): string => {
-  return name.replace(/[\\/:*?"<>|]/g, "_");
-};
-
-const buildDownloadTasks = async () => {
-  const tasks: Array<{
-    chapterId: string;
-    chapterTitle: string;
-    image: any;
-    chapterTotal: number;
-  }> = [];
-
-  for (const id of selectedChapterIds.value) {
-    const chapter = store.chapterList.find((c: any) => c.id === id);
-    if (!chapter) continue;
-
-    let result: any = store.cacheUtils.get(id, "chapters");
-    if (!result) {
-      if (!store.api) {
-        throw new Error("API 未初始化");
-      }
-      result = await store.api.getChapterImages(id);
-      if (result && result.images) {
-        store.cacheUtils.set(id, result, "chapters");
-      }
-    }
-
-    if (result && Array.isArray(result.images)) {
-      const chapterTotal = result.images.length;
-      result.images.forEach((img: any) => {
-        tasks.push({
-          chapterId: id,
-          chapterTitle: chapter.title,
-          image: img,
-          chapterTotal,
-        });
-      });
-    }
-  }
-
-  return tasks;
-};
-
-const runWithConcurrency = async (tasks: any[], concurrency = 10) => {
-  const limit = Math.max(1, concurrency);
-  let index = 0;
-
-  const worker = async () => {
-    while (index < tasks.length) {
-      const currentIndex = index++;
-      const task = tasks[currentIndex];
-      await downloadOne(task, currentIndex + 1);
-    }
-  };
-
-  const workers: Promise<void>[] = [];
-  for (let i = 0; i < limit; i++) {
-    workers.push(worker());
-  }
-
-  await Promise.all(workers);
-};
-
-const downloadOne = async (
-  task: {
-    chapterId: string;
-    chapterTitle: string;
-    image: any;
-    chapterTotal: number;
-  },
-  index: number
-) => {
-  try {
-    let downloadDir: string | undefined = (store.settings as any).downloadDir;
-    if (!downloadDir) {
-      try {
-        downloadDir = await naimo.system.getPath("downloads");
-      } catch (e) {
-        console.error("获取系统下载目录失败:", e);
-        downloadDir = undefined;
-      }
-    }
-
-    const comicTitle = sanitizeFilename(store.currentComic?.title || "comic");
-    const chapterName = sanitizeFilename(task.chapterTitle || "chapter");
-
-    const baseDir = downloadDir || "";
-    const directory = baseDir
-      ? `${baseDir}/${comicTitle}/${chapterName}`
-      : undefined;
-
-    const extMatch = String(task.image.filename || "").match(/\.([^.]+)$/);
-    const ext = extMatch ? extMatch[1] : "png";
-    const seq = String(task.image.index || index).padStart(3, "0");
-    const filename = `${seq}.${ext}`;
-
-    await naimo.download.startDownload({
-      url: task.image.url,
-      directory,
-      saveAsFilename: filename,
-      metadata: {
-        source: "jm-comic",
-        comicTitle: store.currentComic?.title,
-        chapterTitle: task.chapterTitle,
-        chapterId: task.chapterId,
-        chapterTotal: task.chapterTotal,
-      },
-    });
-  } catch (e) {
-    console.error("下载图片失败:", e);
-  }
-};
-
 const handleDownloadSelectedChapters = async () => {
   if (selectedChapterIds.value.length === 0) return;
 
   try {
-    downloadInProgress.value = true;
-    const tasks = await buildDownloadTasks();
-    if (tasks.length === 0) {
+    const success = await downloadStore.startDownload(
+      selectedChapterIds.value.slice()
+    );
+    if (!success) {
       message.warning("选中章节没有可下载的图片");
       return;
     }
-
-    const concurrency = (store.settings as any).downloadConcurrency || 10;
-    await runWithConcurrency(tasks, concurrency);
     message.success("下载任务已开始，在后台进行");
   } catch (error) {
     console.error("批量下载失败:", error);
     message.error("批量下载失败");
   } finally {
-    downloadInProgress.value = false;
     downloadMode.value = false;
     selectedChapterIds.value = [];
   }

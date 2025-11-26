@@ -11,24 +11,37 @@
     <div class="space-y-4">
       <div class="flex items-center justify-between text-xs text-gray-400">
         <div>
-          共 {{ totalChapters }} 章节，已完成 {{ finishedChapters }} 章节
+          共 {{ downloadStore.totalChapters }} 章节，已完成
+          {{ downloadStore.finishedChapters }} 章节
         </div>
-        <div class="flex items-center gap-1">
-          <span>并发数</span>
-          <n-input-number
-            v-model:value="concurrency"
-            size="small"
-            :min="1"
-            :max="20"
-            style="width: 90px"
-          />
+        <div class="flex items-center gap-10">
+          <div class="flex items-center gap-1">
+            <span>章节并发</span>
+            <n-input-number
+              v-model:value="downloadStore.fetchConcurrency"
+              size="small"
+              :min="1"
+              :max="10"
+              style="width: 80px"
+            />
+          </div>
+          <div class="flex items-center gap-1">
+            <span>图片并发</span>
+            <n-input-number
+              v-model:value="downloadStore.downloadConcurrency"
+              size="small"
+              :min="1"
+              :max="20"
+              style="width: 80px"
+            />
+          </div>
         </div>
       </div>
 
-      <template v-if="comicGroups.length > 0">
+      <template v-if="downloadStore.comicGroups.length > 0">
         <n-collapse :accordion="false">
           <n-collapse-item
-            v-for="group in comicGroups"
+            v-for="group in downloadStore.comicGroups"
             :key="group.key"
             :title="`${group.comicTitle} (${group.finishedChapters}/${group.totalChapters})`"
             :name="group.key"
@@ -36,20 +49,31 @@
             <div class="space-y-3">
               <div
                 v-for="chapter in group.chapters"
-                :key="chapter.id"
+                :key="chapter.chapterId"
                 class="space-y-1 pl-6"
               >
                 <div
-                  class="flex items-center justify-between text-xs text-gray-300"
+                  class="flex items-center justify-between text-xs text-gray-300 gap-3"
                 >
-                  <span class="truncate mr-2">{{ chapter.chapterTitle }}</span>
-                  <span class="whitespace-nowrap text-right text-gray-400">
-                    {{ chapter.finished }}/{{ chapter.total }} ({{
-                      chapter.total > 0
-                        ? Math.round((chapter.finished / chapter.total) * 100)
-                        : 0
-                    }}%))
-                  </span>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="truncate">{{ chapter.chapterTitle }}</span>
+                    <n-tag size="tiny" :type="statusTagType(chapter.status)">
+                      {{ statusText(chapter.status) }}
+                    </n-tag>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="whitespace-nowrap text-right text-gray-400">
+                      {{ progressText(chapter) }}
+                    </span>
+                    <n-button
+                      size="tiny"
+                      text
+                      type="error"
+                      @click="downloadStore.deleteDownload(chapter.chapterId)"
+                    >
+                      删除
+                    </n-button>
+                  </div>
                 </div>
                 <n-progress
                   v-if="chapter.total > 0"
@@ -58,7 +82,17 @@
                     Math.round((chapter.finished / chapter.total) * 100)
                   "
                   :show-indicator="false"
+                  status="success"
                 />
+                <div v-else class="text-xs text-gray-500 italic">
+                  待加载章节图片…
+                </div>
+                <div
+                  v-if="chapter.status === 'error' && chapter.error"
+                  class="text-xs text-red-400"
+                >
+                  {{ chapter.error }}
+                </div>
               </div>
             </div>
           </n-collapse-item>
@@ -80,78 +114,65 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
-import { useJMComicStore } from "@/stores/jmcomic";
+import { useJMDownloadStore } from "@/stores/jmDownload";
 
 interface Props {
   show: boolean;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 const emit = defineEmits<{ "update:show": [value: boolean] }>();
 
-const store = useJMComicStore();
+const downloadStore = useJMDownloadStore();
 
-interface ChapterStat {
-  comicTitle: string;
-  chapterTitle: string;
-  total: number;
-  finished: number;
-}
-
-const chapterStats = reactive<Record<string, ChapterStat>>({});
-
-const comicGroups = computed(() => {
-  const groups: Record<
-    string,
-    {
-      comicTitle: string;
-      key: string;
-      chapters: Array<ChapterStat & { id: string }>;
-      finishedChapters: number;
-      totalChapters: number;
-    }
-  > = {};
-
-  for (const [chapterId, stat] of Object.entries(chapterStats)) {
-    const key = stat.comicTitle || "未知作品";
-    if (!groups[key]) {
-      groups[key] = {
-        comicTitle: key,
-        key,
-        chapters: [],
-        finishedChapters: 0,
-        totalChapters: 0,
-      };
-    }
-    const group = groups[key];
-    group.chapters.push({ ...stat, id: chapterId });
-    group.totalChapters += 1;
-    if (stat.total > 0 && stat.finished >= stat.total) {
-      group.finishedChapters += 1;
-    }
+const statusText = (status: string) => {
+  switch (status) {
+    case "pending":
+      return "待开始";
+    case "fetching":
+      return "加载中";
+    case "queued":
+      return "待下载";
+    case "downloading":
+      return "下载中";
+    case "completed":
+      return "已完成";
+    case "error":
+      return "出错";
+    default:
+      return status;
   }
+};
 
-  return Object.values(groups);
-});
+const statusTagType = (status: string) => {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "error":
+      return "error";
+    case "downloading":
+      return "info";
+    case "fetching":
+      return "warning";
+    default:
+      return "default";
+  }
+};
 
-const totalChapters = computed(() =>
-  comicGroups.value.reduce((sum, g) => sum + g.totalChapters, 0)
-);
-
-const finishedChapters = computed(() =>
-  comicGroups.value.reduce((sum, g) => sum + g.finishedChapters, 0)
-);
-
-const concurrency = computed<number>({
-  get() {
-    const v = (store.settings as any).downloadConcurrency;
-    return typeof v === "number" && v > 0 ? v : 10;
-  },
-  set(value: number) {
-    (store.settings as any).downloadConcurrency = value || 10;
-  },
-});
+const progressText = (chapter: {
+  finished: number;
+  total: number;
+  status: string;
+}) => {
+  if (chapter.total <= 0) {
+    return "待加载";
+  }
+  const percent =
+    chapter.total > 0
+      ? Math.round((chapter.finished / chapter.total) * 100)
+      : 0;
+  return `${chapter.finished}/${chapter.total} (${percent}%)`;
+};
 
 const onUpdateShow = (value: boolean) => {
   emit("update:show", value);
@@ -160,86 +181,4 @@ const onUpdateShow = (value: boolean) => {
 const onCancel = () => {
   emit("update:show", false);
 };
-const updateChapterStat = (payload: {
-  chapterId?: string;
-  chapterTitle?: string;
-  comicTitle?: string;
-  chapterTotal?: number;
-  finishedDelta?: number;
-}) => {
-  const chapterId = payload.chapterId;
-  if (!chapterId) return;
-
-  if (!chapterStats[chapterId]) {
-    chapterStats[chapterId] = {
-      comicTitle: payload.comicTitle || "",
-      chapterTitle: payload.chapterTitle || "",
-      total: payload.chapterTotal || 0,
-      finished: 0,
-    };
-  }
-
-  const stat = chapterStats[chapterId];
-  if (payload.chapterTitle) stat.chapterTitle = payload.chapterTitle;
-  if (payload.comicTitle) stat.comicTitle = payload.comicTitle;
-  if (
-    typeof payload.chapterTotal === "number" &&
-    payload.chapterTotal > stat.total
-  ) {
-    stat.total = payload.chapterTotal;
-  }
-  if (payload.finishedDelta) {
-    stat.finished += payload.finishedDelta;
-  }
-};
-
-let unProgress: (() => void) | undefined;
-let unCompleted: (() => void) | undefined;
-let unError: (() => void) | undefined;
-
-onMounted(() => {
-  if (!(window as any).naimo?.download) return;
-
-  unProgress = naimo.download.onDownloadProgress((status: any) => {
-    const meta = status.metadata || {};
-    if (meta.source !== "jm-comic") return;
-    updateChapterStat({
-      chapterId: meta.chapterId,
-      chapterTitle: meta.chapterTitle,
-      comicTitle: meta.comicTitle,
-      chapterTotal: meta.chapterTotal,
-    });
-  });
-
-  unCompleted = naimo.download.onDownloadCompleted((status: any) => {
-    const meta = status.metadata || {};
-    if (meta.source !== "jm-comic") return;
-    updateChapterStat({
-      chapterId: meta.chapterId,
-      chapterTitle: meta.chapterTitle,
-      comicTitle: meta.comicTitle,
-      chapterTotal: meta.chapterTotal,
-      finishedDelta: 1,
-    });
-  });
-
-  unError = naimo.download.onDownloadError((status: any) => {
-    const meta = status.metadata || {};
-    if (meta.source !== "jm-comic") return;
-    // 失败也视为该章节中一个任务结束
-    updateChapterStat({
-      chapterId: meta.chapterId,
-      chapterTitle: meta.chapterTitle,
-      comicTitle: meta.comicTitle,
-      chapterTotal: meta.chapterTotal,
-      finishedDelta: 1,
-    });
-  });
-});
-
-onUnmounted(() => {
-  if (unProgress) unProgress();
-  if (unCompleted) unCompleted();
-  if (unError) unError();
-});
 </script>

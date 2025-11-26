@@ -559,6 +559,38 @@ async function removeFavoriteImage(
 
 // ==================== 暴露插件 API ====================
 
+const INVALID_FILENAME_CHARS = /[<>:"/\\|?*]+/g;
+
+function sanitizeSegment(name: string): string {
+  const cleaned = name.replace(INVALID_FILENAME_CHARS, "_").trim();
+  return cleaned.length > 0 ? cleaned : "unnamed";
+}
+
+interface SaveDownloadImageOptions {
+  baseDir: string;
+  comicTitle: string;
+  chapterTitle: string;
+  filename: string;
+  data: ArrayBuffer | Uint8Array | Buffer;
+}
+
+async function saveDownloadImage(
+  options: SaveDownloadImageOptions
+): Promise<string> {
+  const baseDir = options.baseDir;
+  await fsPromises.mkdir(baseDir, { recursive: true });
+  const comicDir = path.join(baseDir, sanitizeSegment(options.comicTitle));
+  const chapterDir = path.join(comicDir, sanitizeSegment(options.chapterTitle));
+  await fsPromises.mkdir(chapterDir, { recursive: true });
+  const targetPath = path.join(chapterDir, sanitizeSegment(options.filename));
+  const bufferSource =
+    options.data instanceof Buffer
+      ? options.data
+      : Buffer.from(options.data as ArrayBuffer);
+  await fsPromises.writeFile(targetPath, bufferSource);
+  return targetPath;
+}
+
 const comicReaderAPI = {
   getMangaList,
   getChapterImages,
@@ -570,6 +602,7 @@ const comicReaderAPI = {
   updateFolderTimestamp,
   saveImageToFavorites,
   removeFavoriteImage,
+  saveDownloadImage,
 };
 
 contextBridge.exposeInMainWorld("comicReaderAPI", comicReaderAPI);

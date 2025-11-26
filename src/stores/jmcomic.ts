@@ -13,6 +13,8 @@ import {
 export interface ComicDetail extends ComicItem {
   description?: string;
   tags?: string[];
+  likes?: string | number;
+  total_views?: string | number;
   series?: Array<{
     id: string;
     name?: string;
