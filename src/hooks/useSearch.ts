@@ -6,12 +6,19 @@ export function useSearch() {
   const store = useJMComicStore();
   const message = useMessage();
 
-  const processSearchResponse = (response: any): ComicItem[] => {
+  const applyFirstPagePageSize = (page: number, count: number) => {
+    if (page === 1) {
+      store.setPageSize(Math.max(1, count));
+    }
+  };
+
+  const processSearchResponse = (response: any, page: number): ComicItem[] => {
     let data = response.data || response;
     let items: any[] = [];
 
     if (data && data.content && Array.isArray(data.content)) {
       items = data.content;
+      applyFirstPagePageSize(page, items.length);
       if (data.total) {
         const total = parseInt(data.total) || 0;
         store.setTotalItems(total);
@@ -20,9 +27,11 @@ export function useSearch() {
       }
     } else if (data && data.list && Array.isArray(data.list)) {
       items = data.list;
+      applyFirstPagePageSize(page, items.length);
       store.setTotalItems(items.length);
     } else if (Array.isArray(data)) {
       items = data;
+      applyFirstPagePageSize(page, items.length);
       store.setTotalItems(items.length);
     }
 
@@ -102,6 +111,7 @@ export function useSearch() {
     );
 
     if (cachedResult) {
+      applyFirstPagePageSize(page, cachedResult.length);
       // 使用缓存数据
       if (append) {
         store.appendComicList(cachedResult);
@@ -132,7 +142,7 @@ export function useSearch() {
         page,
         store.searchSort
       );
-      const newItems = processSearchResponse(response);
+      const newItems = processSearchResponse(response, page);
 
       // 保存到缓存
       store.cacheUtils.set(cacheKey, newItems, "searches");

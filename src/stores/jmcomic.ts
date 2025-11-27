@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useStorage } from "@vueuse/core";
 import {
   ComicAPI,
@@ -83,7 +83,20 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     hasMorePages: true,
     autoLoadNextPage: false,
   });
-  const pageSize = ref(20);
+  const pageSize = ref(80);
+  watch(pageSize, (size) => {
+    const normalized = size > 0 ? size : 1;
+    if (size <= 0) {
+      pageSize.value = 1;
+      return;
+    }
+    const total = searchState.value.totalItems;
+    if (total > 0) {
+      searchState.value.totalPages = Math.ceil(total / normalized);
+    } else {
+      searchState.value.totalPages = 1;
+    }
+  });
   const loading = ref(false);
   const isManualLoading = ref(false); // 是否是手动加载（切换页面）
 
@@ -230,6 +243,14 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   function setTotalItems(total: number) {
     searchState.value.totalItems = total;
     searchState.value.totalPages = Math.ceil(total / pageSize.value);
+  }
+
+  function setPageSize(size: number) {
+    const normalized = Math.max(1, size);
+    if (pageSize.value === normalized) {
+      return;
+    }
+    pageSize.value = normalized;
   }
 
   function setHasMorePages(hasMore: boolean) {
@@ -430,6 +451,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     toggleAutoLoadNextPage,
     setLoading,
     setIsManualLoading,
+    setPageSize,
     setCurrentComic,
     setChapterList,
     setCurrentChapter,
