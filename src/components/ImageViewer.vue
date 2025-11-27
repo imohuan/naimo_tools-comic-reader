@@ -69,6 +69,7 @@ const scrollContainerRef = ref<HTMLElement | null>(null);
 const estimatedItemHeight = ref(800);
 const scrollTop = ref(0);
 const isLoadingNextChapter = ref(false);
+const skipScrollResetOnce = ref(false);
 let loadNextChapterTimer: number | null = null;
 const favoriteMap = reactive(new Map<string, string>());
 const favoriteLoading = reactive(new Set<string>());
@@ -438,6 +439,7 @@ async function loadNextChapterIfAvailable() {
       store.setCurrentImages(currentImages);
 
       // 更新当前章节
+      skipScrollResetOnce.value = true; // 连续阅读时保留当前位置
       store.setCurrentChapter(nextChapter.chapterTitle);
 
       if (window.$message) {
@@ -476,6 +478,10 @@ watch(
 watch(
   () => store.currentChapter,
   () => {
+    if (skipScrollResetOnce.value) {
+      skipScrollResetOnce.value = false;
+      return;
+    }
     resetScrollPosition();
   }
 );

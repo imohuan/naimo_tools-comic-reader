@@ -194,6 +194,7 @@
                   <div class="flex-1 min-h-0 overflow-hidden">
                     <ComicList
                       ref="comicListRef"
+                      :sidebar-collapsed="sidebarCollapsed"
                       @select-comic="handleSelectComic"
                     />
                   </div>

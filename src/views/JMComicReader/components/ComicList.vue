@@ -46,11 +46,12 @@
         }"
       >
         <ComicListItem
-          v-for="item in store.comicList"
-          :key="item.id"
+          v-for="(item, index) in store.comicList"
+          :key="`${item.id}-${index}`"
           :comic="item"
           :is-active="store.currentComic?.id + '' === item.id + ''"
           :container="containerRef"
+          :is-sidebar-collapsed="props.sidebarCollapsed ?? false"
           @select="(comic) => $emit('select-comic', comic)"
         />
       </div>
@@ -79,6 +80,10 @@ import { useElementSize } from "@vueuse/core";
 import { useJMComicStore } from "@/stores/jmcomic";
 import { usePagination } from "@/hooks/usePagination";
 import ComicListItem from "./ComicListItem.vue";
+
+const props = defineProps<{
+  sidebarCollapsed?: boolean;
+}>();
 
 defineEmits<{
   "select-comic": [comic: any];

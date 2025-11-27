@@ -51,6 +51,7 @@ const props = defineProps<{
   comic: any;
   isActive: boolean;
   container: HTMLElement | null;
+  isSidebarCollapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -83,7 +84,6 @@ const handleImgError = () => {
 
 const scrollIntoViewIfNeeded = async () => {
   if (!props.isActive) return;
-
   await nextTick();
   await new Promise((resolve) => setTimeout(resolve, 100));
   const el = rootRef.value;
@@ -109,6 +109,16 @@ watch(
   () => props.container,
   () => {
     scrollIntoViewIfNeeded();
+  }
+);
+
+watch(
+  () => props.isSidebarCollapsed,
+  (collapsed, prev) => {
+    if (prev === undefined) return;
+    if (prev && !collapsed) {
+      scrollIntoViewIfNeeded();
+    }
   }
 );
 </script>

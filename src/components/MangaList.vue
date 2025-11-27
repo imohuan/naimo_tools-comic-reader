@@ -7,7 +7,7 @@
       暂无数据
     </div>
 
-    <n-scrollbar class="menu" @click="contextMenuVisible = false">
+    <n-scrollbar class="menu viewer" @click="contextMenuVisible = false">
       <div class="p-2 pr-3">
         <template v-for="manga in store.mangas" :key="manga.name">
           <!-- 单章节漫画 -->
