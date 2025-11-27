@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { useEventListener } from "@vueuse/core";
 import {
   darkTheme,
   NMessageProvider,
@@ -17,4 +18,13 @@ import {
   NGlobalStyle,
   NDialogProvider,
 } from "naive-ui";
+
+// 按 ctrl + K 进入调试模式
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.ctrlKey && event.key === "k") {
+    event.preventDefault();
+    debugger;
+  }
+}
+useEventListener(window, "keydown", handleGlobalKeydown);
 </script>

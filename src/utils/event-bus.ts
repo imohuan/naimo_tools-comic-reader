@@ -13,6 +13,7 @@ export type EventMap = {
   "chapter-loaded": { chapterId: string; images: any[] };
   "comic-selected": { comicId: string };
   "chapter-selected": { chapterId: string };
+  "manual-page-change": { page: number };
 };
 
 export const eventBus = mitt<EventMap>();

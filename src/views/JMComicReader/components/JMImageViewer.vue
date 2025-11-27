@@ -410,6 +410,16 @@ function handleWheel(e: WheelEvent) {
   }
 }
 
+// 滚动到顶部
+function scrollToTop() {
+  if (virtualListRef.value) {
+    nextTick(() => {
+      virtualListRef.value?.scrollTo({ position: "top" });
+      scrollTop.value = 0;
+    });
+  }
+}
+
 // 暴露滚动容器引用供父组件使用
 defineExpose({
   virtualListRef,
@@ -434,6 +444,7 @@ defineExpose({
       virtualListRef.value.scrollTo({ top: currentScroll + delta });
     }
   },
+  scrollToTop,
 });
 
 // 监听当前章节变化，重置滚动位置
@@ -493,22 +504,3 @@ onMounted(() => {
   }
 });
 </script>
-
-<style>
-.viewer .n-scrollbar-rail__scrollbar {
-  transform: translateX(-15px) !important;
-  width: 18px !important;
-  border-radius: 0px !important;
-}
-
-.viewer,
-.viewer * {
-  outline: none !important;
-}
-
-.viewer:focus,
-.viewer:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-</style>

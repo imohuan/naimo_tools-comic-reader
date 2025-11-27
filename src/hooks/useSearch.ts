@@ -69,6 +69,14 @@ export function useSearch() {
     }
   };
 
+  const generateSearchCacheKey = (
+    query: string,
+    page: number,
+    sort: string
+  ): string => {
+    return `${query || ""}_${page}_${sort}`;
+  };
+
   const handleSearch = async (page = 1, append = false) => {
     if (!store.searchQuery && page === 1) {
       return;
@@ -78,6 +86,39 @@ export function useSearch() {
       store.setComicList([]);
       store.setCurrentPage(1);
       store.setHasMorePages(true);
+    }
+
+    // 生成缓存 key
+    const cacheKey = generateSearchCacheKey(
+      store.searchQuery || "",
+      page,
+      store.searchSort
+    );
+
+    // 尝试从缓存获取
+    const cachedResult = store.cacheUtils.get<ComicItem[]>(
+      cacheKey,
+      "searches"
+    );
+
+    if (cachedResult) {
+      // 使用缓存数据
+      if (append) {
+        store.appendComicList(cachedResult);
+      } else {
+        store.setComicList(cachedResult);
+      }
+
+      // 更新分页信息
+      if (cachedResult.length === 0 || store.currentPage >= store.totalPages) {
+        store.setHasMorePages(false);
+      } else {
+        store.setHasMorePages(true);
+      }
+
+      store.setLoading(false);
+      store.setIsManualLoading(false);
+      return;
     }
 
     store.setLoading(true);
@@ -92,6 +133,9 @@ export function useSearch() {
         store.searchSort
       );
       const newItems = processSearchResponse(response);
+
+      // 保存到缓存
+      store.cacheUtils.set(cacheKey, newItems, "searches");
 
       if (append) {
         store.appendComicList(newItems);
@@ -112,6 +156,7 @@ export function useSearch() {
       }
     } finally {
       store.setLoading(false);
+      store.setIsManualLoading(false);
     }
   };
 

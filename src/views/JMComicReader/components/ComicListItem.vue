@@ -13,6 +13,7 @@
         class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
         :intersection-observer-options="{
           root: container,
+          rootMargin: '300px',
         }"
         @error="handleImgError"
       >

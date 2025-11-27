@@ -16,3 +16,25 @@
 img {
   pointer-events: none;
 }
+
+.comic-viewer .n-scrollbar-rail__scrollbar {
+}
+
+/* 图片查看器样式 */
+.viewer .n-scrollbar-rail__scrollbar {
+  transform: translateX(-15px) !important;
+  width: 18px !important;
+  border-radius: 0px !important;
+  background-color: rgba(236, 72, 153, 0.5) !important;
+}
+
+.viewer,
+.viewer * {
+  outline: none !important;
+}
+
+.viewer:focus,
+.viewer:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

@@ -20,10 +20,23 @@
 
     <n-infinite-scroll
       v-else
+      ref="infiniteScrollRef"
       :distance="10"
       @load="handleLoad"
-      class="w-full h-full"
+      class="w-full h-full relative viewer comic-viewer"
     >
+      <!-- 手动切换页面时的绝对定位加载指示器 -->
+      <div
+        v-if="
+          store.loading && store.comicList.length > 0 && store.isManualLoading
+        "
+        class="absolute inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm"
+      >
+        <div class="flex flex-col items-center justify-center gap-3">
+          <n-spin size="large" />
+          <p class="text-sm text-gray-400">正在加载...</p>
+        </div>
+      </div>
       <div
         class="p-2"
         :style="{
@@ -61,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, nextTick } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { useJMComicStore } from "@/stores/jmcomic";
 import { usePagination } from "@/hooks/usePagination";
@@ -75,6 +88,7 @@ const store = useJMComicStore();
 const { handleLoad } = usePagination();
 
 const containerRef = ref<HTMLElement | null>(null);
+const infiniteScrollRef = ref<any>(null);
 const { width: containerWidth } = useElementSize(containerRef);
 
 const leftColumnCount = computed(() => {
@@ -90,7 +104,21 @@ const leftColumnCount = computed(() => {
   return Math.max(1, Math.min(columns, 10));
 });
 
-// 图片错误处理逻辑已在子组件中实现，这里保留文件结构即可
+// 滚动到顶部
+function scrollToTop() {
+  nextTick(() => {
+    // 使用 n-infinite-scroll 内部的 scrollbarInstRef 的 scrollTo 方法
+    if (infiniteScrollRef.value?.scrollbarInstRef?.scrollTo) {
+      infiniteScrollRef.value.scrollbarInstRef.scrollTo({ top: 0, left: 0 });
+      return;
+    }
+  });
+}
+
+// 暴露方法供父组件调用
+defineExpose({
+  scrollToTop,
+});
 </script>
 
 <style scoped>

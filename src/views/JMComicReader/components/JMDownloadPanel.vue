@@ -39,7 +39,10 @@
       </div>
 
       <template v-if="downloadStore.comicGroups.length > 0">
-        <n-collapse :accordion="false">
+        <n-collapse
+          :accordion="false"
+          :default-expanded-names="defaultExpandedNames"
+        >
           <n-collapse-item
             v-for="group in downloadStore.comicGroups"
             :key="group.key"
@@ -114,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useJMDownloadStore } from "@/stores/jmDownload";
 
 interface Props {
@@ -124,6 +128,10 @@ defineProps<Props>();
 const emit = defineEmits<{ "update:show": [value: boolean] }>();
 
 const downloadStore = useJMDownloadStore();
+
+const defaultExpandedNames = computed(() =>
+  downloadStore.comicGroups.map((group) => group.key)
+);
 
 const statusText = (status: string) => {
   switch (status) {

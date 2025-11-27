@@ -454,16 +454,29 @@ async function loadNextChapterIfAvailable() {
   }
 }
 
+// 重置滚动位置到顶部
+function resetScrollPosition() {
+  if (virtualListRef.value) {
+    nextTick(() => {
+      virtualListRef.value?.scrollTo({ position: "top" });
+      scrollTop.value = 0;
+    });
+  }
+}
+
+// 监听当前漫画变化，重置滚动位置（切换漫画时）
+watch(
+  () => store.currentManga?.name,
+  () => {
+    resetScrollPosition();
+  }
+);
+
 // 监听当前章节变化，重置滚动位置（切换章节时）
 watch(
   () => store.currentChapter,
   () => {
-    if (virtualListRef.value) {
-      nextTick(() => {
-        virtualListRef.value?.scrollTo({ position: "top" });
-        scrollTop.value = 0;
-      });
-    }
+    resetScrollPosition();
   }
 );
 
@@ -514,22 +527,3 @@ onMounted(() => {
   }
 });
 </script>
-
-<style>
-.viewer .n-scrollbar-rail__scrollbar {
-  transform: translateX(-15px) !important;
-  width: 18px !important;
-  border-radius: 0px !important;
-}
-
-.viewer,
-.viewer * {
-  outline: none !important;
-}
-
-.viewer:focus,
-.viewer:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-</style>

@@ -192,7 +192,10 @@
                     <SearchBar @show-settings="store.toggleSettings()" />
                   </div>
                   <div class="flex-1 min-h-0 overflow-hidden">
-                    <ComicList @select-comic="handleSelectComic" />
+                    <ComicList
+                      ref="comicListRef"
+                      @select-comic="handleSelectComic"
+                    />
                   </div>
                   <div class="flex-shrink-0 border-t border-gray-800/50">
                     <PaginationBar />
@@ -307,6 +310,7 @@ const router = useRouter();
 const sidebarCollapsed = ref(false);
 const rightTab = ref<"detail" | "images">("detail");
 const imageViewerRef = ref<InstanceType<typeof JMImageViewer> | null>(null);
+const comicListRef = ref<InstanceType<typeof ComicList> | null>(null);
 const splitSize = ref(0.2); // 默认左侧占 20%
 const showDownloadManager = ref(false);
 const downloadChapterIds = ref<string[]>([]);
@@ -366,6 +370,13 @@ eventBus.on("jm-download" as any, (payload: { chapterIds: string[] }) => {
   downloadChapterIds.value = payload.chapterIds || [];
   if (downloadChapterIds.value.length > 0) {
     showDownloadManager.value = true;
+  }
+});
+
+// 监听手动翻页事件，滚动左侧列表到顶部
+eventBus.on("manual-page-change", () => {
+  if (comicListRef.value && comicListRef.value.scrollToTop) {
+    comicListRef.value.scrollToTop();
   }
 });
 
@@ -752,6 +763,7 @@ onUnmounted(() => {
   stopAutoScroll();
   window.removeEventListener("keydown", handleKeydown);
   eventBus.off("chapter-selected");
+  eventBus.off("manual-page-change");
 });
 </script>
 

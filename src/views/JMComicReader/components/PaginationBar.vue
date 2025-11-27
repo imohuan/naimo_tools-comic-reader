@@ -9,7 +9,7 @@
         :page-size="store.pageSize"
         :item-count="store.totalItems"
         :page-slot="pageSlot"
-        @update:page="handlePageChange"
+        @update:page="(page: number) => handlePageChange(page, true)"
         :disabled="store.loading"
         size="small"
       />

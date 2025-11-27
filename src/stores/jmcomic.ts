@@ -39,6 +39,8 @@ export interface CacheItem<T> {
   timestamp: number;
 }
 
+export type CacheType = "details" | "chapters" | "searches";
+
 const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24小时
 
 export const useJMComicStore = defineStore("jmcomic", () => {
@@ -83,6 +85,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   });
   const pageSize = ref(20);
   const loading = ref(false);
+  const isManualLoading = ref(false); // 是否是手动加载（切换页面）
 
   // 当前选中的漫画和章节
   const readingState = useStorage("jm-reading-state", {
@@ -130,14 +133,16 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   const cacheStore = useStorage<{
     details: Record<string, CacheItem<ComicDetail>>;
     chapters: Record<string, CacheItem<any>>;
+    searches: Record<string, CacheItem<ComicItem[]>>;
   }>("jm-cache-store", {
     details: {},
     chapters: {},
+    searches: {},
   });
 
   // 缓存工具函数
   const cacheUtils = {
-    get<T>(key: string, type: "details" | "chapters"): T | null {
+    get<T>(key: string, type: CacheType): T | null {
       const cache = cacheStore.value[type];
       if (!cache || !cache[key]) return null;
 
@@ -146,14 +151,14 @@ export const useJMComicStore = defineStore("jmcomic", () => {
 
       if (now - cached.timestamp > CACHE_EXPIRY_TIME) {
         delete cache[key];
-        cacheStore.value[type] = { ...cache };
+        cacheStore.value[type] = { ...cache } as any;
         return null;
       }
 
       return cached.data as T;
     },
 
-    set<T>(key: string, data: T, type: "details" | "chapters") {
+    set<T>(key: string, data: T, type: CacheType) {
       const cache = cacheStore.value[type];
       cacheStore.value[type] = {
         ...cache,
@@ -161,21 +166,21 @@ export const useJMComicStore = defineStore("jmcomic", () => {
           data: data as any,
           timestamp: Date.now(),
         },
-      };
+      } as any;
     },
 
-    clear(type?: "details" | "chapters") {
+    clear(type?: CacheType) {
       if (type) {
         cacheStore.value[type] = {};
       } else {
-        cacheStore.value = { details: {}, chapters: {} };
+        cacheStore.value = { details: {}, chapters: {}, searches: {} };
       }
     },
 
     clearExpired() {
       const now = Date.now();
-      ["details", "chapters"].forEach((type) => {
-        const cache = cacheStore.value[type as "details" | "chapters"];
+      (["details", "chapters", "searches"] as CacheType[]).forEach((type) => {
+        const cache = cacheStore.value[type];
         const keys = Object.keys(cache);
         let hasChanges = false;
 
@@ -187,12 +192,14 @@ export const useJMComicStore = defineStore("jmcomic", () => {
         });
 
         if (hasChanges) {
-          cacheStore.value[type as "details" | "chapters"] = { ...cache };
+          cacheStore.value[type] = {
+            ...cache,
+          } as any;
         }
       });
     },
 
-    getCount(type: "details" | "chapters"): number {
+    getCount(type: CacheType): number {
       const cache = cacheStore.value[type];
       if (!cache) return 0;
       return Object.keys(cache).length;
@@ -235,6 +242,10 @@ export const useJMComicStore = defineStore("jmcomic", () => {
 
   function setLoading(value: boolean) {
     loading.value = value;
+  }
+
+  function setIsManualLoading(value: boolean) {
+    isManualLoading.value = value;
   }
 
   function setCurrentComic(comic: ComicDetail | null) {
@@ -380,6 +391,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     totalPages: computed(() => searchState.value.totalPages),
     hasMorePages: computed(() => searchState.value.hasMorePages),
     loading,
+    isManualLoading,
     autoLoadNextPage: computed(() => searchState.value.autoLoadNextPage),
 
     // 当前内容
@@ -417,6 +429,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     setHasMorePages,
     toggleAutoLoadNextPage,
     setLoading,
+    setIsManualLoading,
     setCurrentComic,
     setChapterList,
     setCurrentChapter,

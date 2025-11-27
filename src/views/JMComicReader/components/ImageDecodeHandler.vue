@@ -62,7 +62,24 @@ async function handleImageDecode(event: ImageDecodeEvent) {
     // 判断 imageObj.processedUrl 是否可用
     if (imageObj.processedUrl) {
       const isAvailable = await checkBlobUrlAvailable(imageObj.processedUrl);
-      if (!isAvailable) {
+      if (isAvailable) {
+        // 直接使用已存在的 processedUrl，更新 readingImages 中的 URL
+        const readingImage = store.readingImages.find(
+          (img) => img.index === event.imageIndex
+        );
+        if (readingImage) {
+          readingImage.url = imageObj.processedUrl;
+        }
+
+        // 发送解码成功事件
+        eventBus.emit("image-decode", {
+          type: "image-decoded",
+          imageUrl: event.imageUrl,
+          imageIndex: event.imageIndex,
+          decodedUrl: imageObj.processedUrl,
+        });
+        return;
+      } else {
         // blob URL 已失效，清除它以便重新处理
         imageObj.processedUrl = undefined;
       }
