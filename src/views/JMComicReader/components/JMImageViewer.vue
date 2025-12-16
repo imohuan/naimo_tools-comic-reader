@@ -2,20 +2,20 @@
   <div
     ref="viewerContainer"
     class="viewer h-full flex-1 relative bg-[#050505] overflow-hidden outline-none focus:outline-none"
-    @wheel="handleWheel"
     tabindex="-1"
   >
-    <NVirtualList
-      ref="virtualListRef"
-      :items="virtualListItems"
-      :item-size="estimatedItemHeight"
-      item-resizable
-      key-field="key"
+    <n-scrollbar
+      ref="scrollbarRef"
+      id="jm-image-scroll-container"
+      class="menu viewer h-full w-full"
       style="height: 100%"
       @scroll="handleScroll"
+      @wheel="handleWheel"
     >
-      <template #default="{ item }">
+      <div class="w-full flex flex-col items-center gap-0 py-0">
         <div
+          v-for="item in virtualListItems"
+          :key="item.key"
           class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0 relative"
         >
           <div class="absolute top-3 left-3 z-10 flex">
@@ -26,30 +26,26 @@
               @remove="handleFavoriteRemoval(item)"
             />
           </div>
-          <img
-            :ref="(el) => setImageRef(el, item)"
-            :src="getImageSrc(item)"
-            :alt="item.filename"
-            class="w-auto h-auto object-contain bg-[#111] select-none outline-none focus:outline-none ring-0 focus:ring-0"
-            :style="{
-              width: `${store.imageScale}%`,
-              maxWidth: '100%',
-              display: 'block',
-            }"
-            loading="lazy"
-            @load="onImageLoad($event, item)"
-            @error="onImageError($event, item)"
+          <LazyFileImage
+            :item="item"
+            :file-path="item.path"
+            :img-style="{ width: `${store.imageScale}%` }"
+            img-class="block mx-auto max-w-full w-auto h-auto object-contain bg-[#111] select-none outline-none focus:outline-none ring-0 focus:ring-0"
+            :get-scroll-container="getScrollContainer"
+            @loaded="(e: Event) => onImageLoad(e, item)"
+            @error="(e: Event) => onImageError(e, item)"
           />
         </div>
-      </template>
-    </NVirtualList>
+      </div>
+    </n-scrollbar>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
-import { NVirtualList, useMessage } from "naive-ui";
+import { NScrollbar, useMessage } from "naive-ui";
 import FavoriteToggle from "@/components/FavoriteToggle.vue";
+import LazyFileImage from "@/components/LazyFileImage.vue";
 import { useJMComicStore } from "@/stores/jmcomic";
 import { useComicStore } from "@/stores/comic";
 import { eventBus } from "@/utils/event-bus";
@@ -59,93 +55,28 @@ const store = useJMComicStore();
 const comicStore = useComicStore();
 const message = useMessage();
 const viewerContainer = ref<HTMLElement | null>(null);
-const virtualListRef = ref<any>(null);
-const estimatedItemHeight = ref(800);
+const scrollbarRef = ref<any>(null);
+const scrollContainerRef = ref<HTMLElement | null>(null);
 const scrollTop = ref(0);
 const imageRefs = new Map<string, HTMLImageElement>();
 const favoriteMap = reactive(new Map<string, string>());
 const favoriteLoading = reactive(new Set<string>());
-const imageSrcMap = ref<Map<string, string>>(new Map());
-const loadingLocalImages = new Set<string>();
 
-// 存储每个item的实际高度
-const itemHeights = ref<Map<string, number>>(new Map());
-
-// 将图片列表转换为虚拟列表需要的格式
+// 将图片列表转换为渲染所需的格式
 const virtualListItems = computed(() => {
   return store.readingImages.map((img, index) => ({
     key: `${img.url}-${index}`,
     url: img.url,
     index: img.index,
     filename: `image-${img.index + 1}`,
-    path: img.path,
+    path: img.path || "",
   }));
 });
-
-// 获取图片 src
-function getImageSrc(item: any): string {
-  const cacheKey = item.path || item.url;
-  if (cacheKey && imageSrcMap.value.has(cacheKey)) {
-    return imageSrcMap.value.get(cacheKey)!;
-  }
-
-  if (isLocalImage(item)) {
-    loadLocalImage(cacheKey, item.path);
-  }
-
-  return item.url;
-}
-
-function isLocalImage(item: any): boolean {
-  if (!item?.path) return false;
-  return (
-    item.url?.startsWith("file://") && !!window.naimo?.system?.getLocalImage
-  );
-}
-
-function getImageType(filePath: string): string {
-  const ext = filePath.toLowerCase().split(".").pop() || "jpg";
-  const typeMap: Record<string, string> = {
-    jpg: "jpeg",
-    jpeg: "jpeg",
-    png: "png",
-    gif: "gif",
-    webp: "webp",
-    bmp: "bmp",
-  };
-  return typeMap[ext] || "jpeg";
-}
-
-async function loadLocalImage(cacheKey: string, filePath: string) {
-  if (!filePath || !cacheKey) return;
-  if (loadingLocalImages.has(cacheKey)) return;
-  loadingLocalImages.add(cacheKey);
-
-  try {
-    const base64 = await window.naimo.system.getLocalImage(filePath);
-    const dataUrl = `data:image/${getImageType(filePath)};base64,${base64}`;
-    imageSrcMap.value.set(cacheKey, dataUrl);
-  } catch (error) {
-    console.error("加载本地图片失败:", error);
-  } finally {
-    loadingLocalImages.delete(cacheKey);
-  }
-}
-
-// 预加载图片
-function preloadImage(item: any): void {
-  const src = getImageSrc(item);
-  const img = new Image();
-  img.src = src;
-}
 
 // 设置图片引用
 function setImageRef(el: any, item: any) {
   if (el && item) {
     imageRefs.set(item.key, el);
-    if (el.complete && el.naturalHeight > 0) {
-      nextTick(() => updateItemHeight(item, el));
-    }
   } else if (!el && item) {
     imageRefs.delete(item.key);
   }
@@ -169,12 +100,7 @@ async function captureImageArrayBuffer(item: any): Promise<ArrayBuffer> {
   const image = imageRefs.get(item.key);
 
   // 尝试使用 canvas 方式（更快，因为图片已加载）
-  if (
-    image &&
-    image.complete &&
-    image.naturalWidth > 0 &&
-    image.naturalHeight > 0
-  ) {
+  if (image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
     try {
       const canvas = document.createElement("canvas");
       canvas.width = image.naturalWidth;
@@ -220,7 +146,7 @@ async function captureImageArrayBuffer(item: any): Promise<ArrayBuffer> {
   }
 
   // 回退方案：直接通过 fetch 获取图片数据
-  const response = await fetch(getImageSrc(item));
+  const response = await fetch(image?.src || item.url);
   if (!response.ok) {
     throw new Error("无法获取图片数据");
   }
@@ -301,38 +227,10 @@ async function handleFavoriteRemoval(item: any) {
   }
 }
 
-// 更新 item 高度
-function updateItemHeight(item: any, img?: HTMLImageElement) {
-  const image = img || imageRefs.get(item.key);
-  if (!image || !virtualListRef.value || !viewerContainer.value) return;
-
-  if (image.complete && image.naturalHeight > 0 && image.naturalWidth > 0) {
-    const viewportWidth = viewerContainer.value.clientWidth || 1920;
-    const naturalWidth = image.naturalWidth;
-    const naturalHeight = image.naturalHeight;
-    const zoomRatio = store.imageScale / 100;
-
-    const maxScaledWidth = viewportWidth * zoomRatio;
-    const scaledWidth = Math.min(maxScaledWidth, naturalWidth * zoomRatio);
-    const scaledHeight = (naturalHeight * scaledWidth) / naturalWidth;
-    const finalHeight = Math.max(scaledHeight + 8, 200);
-
-    // 如果高度发生变化，更新虚拟列表
-    const oldHeight = itemHeights.value.get(item.key);
-    if (oldHeight !== finalHeight) {
-      itemHeights.value.set(item.key, finalHeight);
-
-      // 如果虚拟列表支持动态更新item大小，更新它
-      if (virtualListRef.value?.updateItemSize) {
-        virtualListRef.value.updateItemSize(item.key, finalHeight);
-      }
-    }
-  }
-}
-
 function onImageLoad(event: Event, item: any) {
   if (item && event.target) {
-    updateItemHeight(item, event.target as HTMLImageElement);
+    const imgEl = event.target as HTMLImageElement;
+    setImageRef(imgEl, item);
     updateCurrentPage();
 
     // 发送图片加载事件
@@ -354,19 +252,29 @@ function onImageError(_e: Event, item: any) {
 }
 
 function updateCurrentPage() {
-  if (!virtualListRef.value || !viewerContainer.value) return;
+  const container = getScrollContainer();
+  if (!container || !viewerContainer.value) return;
 
-  const viewportHeight = viewerContainer.value.clientHeight;
-  const centerScrollTop = scrollTop.value + viewportHeight / 2;
-  const estimatedPage =
-    Math.floor(centerScrollTop / estimatedItemHeight.value) + 1;
-  const clampedPage = Math.max(
-    1,
-    Math.min(estimatedPage, store.readingImages.length)
-  );
+  const centerScrollTop = container.scrollTop + container.clientHeight / 2;
+  let closestIndex = 0;
+  let minDistance = Number.POSITIVE_INFINITY;
 
-  if (clampedPage !== store.currentImageIndex + 1) {
-    store.setCurrentImageIndex(clampedPage - 1);
+  virtualListItems.value.forEach((item, index) => {
+    const img = imageRefs.get(item.key);
+    if (!img) return;
+    const offsetTop = img.offsetTop;
+    const itemCenter = offsetTop + img.clientHeight / 2;
+    const distance = Math.abs(itemCenter - centerScrollTop);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestIndex = index;
+    }
+  });
+
+  const targetPage = Math.min(Math.max(1, closestIndex + 1), store.readingImages.length);
+
+  if (targetPage !== store.currentImageIndex + 1) {
+    store.setCurrentImageIndex(targetPage - 1);
     // 当前页面变化时预加载
     preloadVisibleImages();
   }
@@ -383,21 +291,7 @@ function handleScroll(e: Event) {
 
 // 预加载可见区域附近的图片
 function preloadVisibleImages() {
-  if (!store.readingImages.length) return;
-
-  const currentIndex = store.currentImageIndex;
-  const preloadRange = 3; // 预加载前后各3张
-
-  // 预加载当前图片前后的图片
-  for (
-    let i = Math.max(0, currentIndex - preloadRange);
-    i <= Math.min(store.readingImages.length - 1, currentIndex + preloadRange);
-    i++
-  ) {
-    if (store.readingImages[i]) {
-      preloadImage(store.readingImages[i]);
-    }
-  }
+  // JM 阅读器中依赖 LazyFileImage 自身的懒加载，不再额外预加载
 }
 
 // Ctrl + 滚轮缩放
@@ -412,65 +306,66 @@ function handleWheel(e: WheelEvent) {
 
 // 滚动到顶部
 function scrollToTop() {
-  if (virtualListRef.value) {
-    nextTick(() => {
-      virtualListRef.value?.scrollTo({ position: "top" });
-      scrollTop.value = 0;
-    });
+  const container = getScrollContainer();
+  nextTick(() => {
+    if (scrollbarRef.value?.scrollTo) {
+      scrollbarRef.value.scrollTo({ left: 0, top: 0 });
+    } else if (container) {
+      container.scrollTo({ left: 0, top: 0 });
+    }
+    scrollTop.value = 0;
+  });
+}
+
+// 获取滚动容器
+function getScrollContainer(): HTMLElement | null {
+  if (scrollbarRef.value?.containerRef) {
+    return scrollbarRef.value.containerRef as HTMLElement;
   }
+  if (scrollContainerRef.value) {
+    return scrollContainerRef.value;
+  }
+  const fallback = document.getElementById("jm-image-scroll-container");
+  if (fallback) {
+    const container =
+      (fallback.querySelector(".n-scrollbar-container") as HTMLElement) ||
+      (fallback as HTMLElement);
+    scrollContainerRef.value = container;
+    return container;
+  }
+  return null;
 }
 
 // 暴露滚动容器引用供父组件使用
 defineExpose({
-  virtualListRef,
-  getScrollContainer: () => {
-    if (virtualListRef.value?.$el) {
-      return (
-        virtualListRef.value.$el.querySelector(".n-scrollbar-container") ||
-        virtualListRef.value.$el.querySelector(".n-virtual-list") ||
-        virtualListRef.value.$el.querySelector('[style*="overflow"]')
-      );
-    }
-    return null;
-  },
-  scrollBy: (delta: number) => {
-    const scrollContainer = virtualListRef.value?.$el?.querySelector(
-      ".n-scrollbar-container"
-    );
-    if (scrollContainer) {
-      scrollContainer.scrollTop += delta;
-    } else if (virtualListRef.value?.scrollTo) {
-      const currentScroll = scrollTop.value;
-      virtualListRef.value.scrollTo({ top: currentScroll + delta });
-    }
-  },
+  scrollContainerRef,
+  getScrollContainer,
   scrollToTop,
+  scrollBy: (delta: number) => {
+    const container = getScrollContainer();
+    if (container) {
+      container.scrollTop += delta;
+    } else if (scrollbarRef.value?.scrollTo) {
+      const currentScroll = scrollTop.value;
+      scrollbarRef.value.scrollTo({ top: currentScroll + delta });
+    }
+  },
 });
 
 // 监听当前章节变化，重置滚动位置
 watch(
   () => store.currentChapter,
   () => {
-    if (virtualListRef.value) {
-      nextTick(() => {
-        virtualListRef.value?.scrollTo({ position: "top" });
-        scrollTop.value = 0;
-      });
-    }
+    scrollToTop();
   }
 );
 
-// 监听缩放变化，重新计算 item 高度
+// 监听缩放变化，更新当前页
 watch(
   () => store.imageScale,
   () => {
     nextTick(() => {
-      virtualListItems.value.forEach((item) => {
-        const img = imageRefs.get(item.key);
-        if (img && img.complete) {
-          updateItemHeight(item, img);
-        }
-      });
+      updateCurrentPage();
     });
   }
 );
@@ -478,29 +373,21 @@ watch(
 // 监听图片列表变化，清理旧的高度缓存并预加载图片
 watch(
   () => store.readingImages,
-  (newImages) => {
+  () => {
     // 清理旧的高度缓存和图片引用
-    itemHeights.value.clear();
     imageRefs.clear();
     favoriteMap.clear();
     favoriteLoading.clear();
-    imageSrcMap.value.clear();
-    loadingLocalImages.clear();
-
-    // 预加载前几张图片
-    if (newImages.length > 0) {
-      const preloadCount = Math.min(5, newImages.length);
-      for (let i = 0; i < preloadCount; i++) {
-        preloadImage(newImages[i]);
-      }
-    }
   },
   { immediate: true }
 );
 
 onMounted(() => {
-  if (virtualListRef.value) {
-    virtualListRef.value.scrollTo({ position: "top" });
-  }
+  nextTick(() => {
+    scrollContainerRef.value = getScrollContainer();
+    if (scrollbarRef.value?.scrollTo) {
+      scrollbarRef.value.scrollTo({ left: 0, top: 0 });
+    }
+  });
 });
 </script>

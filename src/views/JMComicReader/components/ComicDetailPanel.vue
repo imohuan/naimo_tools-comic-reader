@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="bg-cardbg rounded-xl p-6 shadow-lg flex flex-col md:flex-row gap-6"
-  >
+  <div class="bg-cardbg rounded-xl p-6 shadow-lg flex flex-col md:flex-row gap-6">
     <!-- 封面 -->
     <div class="w-full md:w-1/2 lg:w-1/3 flex-shrink-0">
       <n-image
@@ -12,9 +10,7 @@
         @error="handleImgError"
       >
         <template #placeholder>
-          <div
-            class="flex items-center justify-center w-full h-full bg-gray-800"
-          >
+          <div class="flex items-center justify-center w-full h-full bg-gray-800">
             <n-spin size="small" />
           </div>
         </template>
@@ -22,13 +18,11 @@
     </div>
 
     <!-- 信息 -->
-    <div class="flex-1">
+    <div class="flex-1 select-text">
       <h1 class="text-2xl md:text-3xl font-bold text-white mb-2">
         {{ store.currentComic?.title }}
       </h1>
-      <p class="text-gray-400 text-sm mb-4">
-        JM ID: {{ store.currentComic?.id }}
-      </p>
+      <p class="text-gray-400 text-sm mb-4">JM ID: {{ store.currentComic?.id }}</p>
 
       <!-- 统计信息 -->
       <div v-if="hasStats" class="flex items-center gap-4 mb-4 text-sm">
@@ -76,12 +70,7 @@
       </div>
 
       <div class="flex flex-wrap gap-2 mb-4">
-        <n-tag
-          v-for="tag in store.currentComic?.tags"
-          :key="tag"
-          type="default"
-          round
-        >
+        <n-tag v-for="tag in store.currentComic?.tags" :key="tag" type="default" round>
           {{ tag }}
         </n-tag>
       </div>
@@ -174,9 +163,7 @@
                 :selected="selectedChapterIds.includes(chapter.id)"
                 :download-info="getChapterDownloadInfo(chapter.id)"
                 @select="(event) => handleChapterClick(chapter, index, event)"
-                @toggle-select="
-                  (v) => handleSelectChapterForDownload(chapter, v)
-                "
+                @toggle-select="(v) => handleSelectChapterForDownload(chapter, v)"
               />
             </template>
             <div
@@ -615,8 +602,7 @@ watch(
 
 .chapter-item {
   border-radius: 0.5rem;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease,
-    transform 0.1s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
 .chapter-item:hover {
