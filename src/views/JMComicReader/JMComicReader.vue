@@ -4,10 +4,7 @@
   <div
     class="w-full h-screen overflow-hidden select-none bg-[#101014] text-gray-200 flex flex-col"
   >
-    <n-config-provider
-      :theme="darkTheme"
-      class="h-full overflow-hidden flex flex-col"
-    >
+    <n-config-provider :theme="darkTheme" class="h-full overflow-hidden flex flex-col">
       <n-message-provider placement="bottom-right">
         <n-notification-provider placement="bottom-right">
           <!-- 顶部导航栏 -->
@@ -53,9 +50,7 @@
                   <div class="w-px h-3 bg-gray-600"></div>
                   <span class="text-xs font-mono text-green-400">{{
                     store.readingImages.length > 0
-                      ? `${store.currentImageIndex + 1}/${
-                          store.readingImages.length
-                        }`
+                      ? `${store.currentImageIndex + 1}/${store.readingImages.length}`
                       : "--"
                   }}</span>
                 </div>
@@ -107,9 +102,7 @@
               </template>
 
               <!-- 详情/图片预览切换按钮组 -->
-              <div
-                class="flex items-center bg-gray-800/50 rounded-lg p-0.5 gap-0.5 h-7"
-              >
+              <div class="flex items-center bg-gray-800/50 rounded-lg p-0.5 gap-0.5 h-7">
                 <button
                   @click="rightTab = 'detail'"
                   :class="[
@@ -206,9 +199,7 @@
             </template>
             <template #2>
               <!-- 中间阅读区域 -->
-              <main
-                class="relative bg-[#050505] flex flex-col h-full overflow-hidden"
-              >
+              <main class="relative bg-[#050505] flex flex-col h-full overflow-hidden">
                 <!-- <div
                   v-if="store.detailLoading && store.readingImages.length === 0"
                   class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
@@ -229,10 +220,7 @@
                 </div>
 
                 <!-- 详情视图 -->
-                <div
-                  v-else-if="rightTab === 'detail'"
-                  class="flex-1 overflow-auto p-6"
-                >
+                <div v-else-if="rightTab === 'detail'" class="flex-1 overflow-auto p-6">
                   <ComicDetailPanel />
                 </div>
 
@@ -249,9 +237,7 @@
                   </div>
                   <div v-else class="w-full h-full">
                     <div
-                      v-if="
-                        store.detailLoading && store.readingImages.length === 0
-                      "
+                      v-if="store.detailLoading && store.readingImages.length === 0"
                       class="absolute inset-0 flex items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
                     >
                       <n-spin size="large">
@@ -330,7 +316,14 @@ let autoScrollInterval: number | null = null;
 
 const imageScale = computed({
   get: () => store.imageScale,
-  set: (value) => store.setImageScale(value),
+  set: (value) => {
+    const viewer = imageViewerRef.value as any;
+    if (viewer?.setScaleWithAnchor) {
+      viewer.setScaleWithAnchor(value);
+    } else {
+      store.setImageScale(value);
+    }
+  },
 });
 
 // Tab 键切换侧边栏
@@ -587,11 +580,7 @@ const handleSelectComic = async (comic: any) => {
       });
 
       // 提取章节列表
-      if (
-        detail.series &&
-        Array.isArray(detail.series) &&
-        detail.series.length > 0
-      ) {
+      if (detail.series && Array.isArray(detail.series) && detail.series.length > 0) {
         store.setChapterList(
           detail.series
             .map((item: any) => {

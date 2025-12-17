@@ -44,11 +44,7 @@
                 @blur="handleDirectoryChange(index)"
                 @keydown.enter="handleDirectoryChange(index)"
               />
-              <n-button
-                size="small"
-                quaternary
-                @click="handleSelectDirectory(index)"
-              >
+              <n-button size="small" quaternary @click="handleSelectDirectory(index)">
                 <template #icon>
                   <svg
                     class="w-4 h-4"
@@ -83,6 +79,26 @@
           </n-space>
         </div>
 
+        <!-- 阅读性能设置 -->
+        <div>
+          <n-h3>阅读性能</n-h3>
+          <n-space vertical :size="12">
+            <div class="flex items-center justify-between">
+              <span>最大同时渲染图片数</span>
+              <div class="flex items-center gap-4 w-64">
+                <n-input-number
+                  v-model:value="store.virtualMaxRenderCount"
+                  :min="20"
+                  :max="500"
+                  :step="10"
+                  size="small"
+                  style="width: 160px"
+                />
+              </div>
+            </div>
+          </n-space>
+        </div>
+
         <!-- 快捷键设置 -->
         <div>
           <n-h3>快捷键设置</n-h3>
@@ -113,9 +129,7 @@
                   :tooltip="false"
                   style="width: 200px"
                 />
-                <span class="text-sm font-mono w-10">{{
-                  store.autoScrollSpeed
-                }}</span>
+                <span class="text-sm font-mono w-10">{{ store.autoScrollSpeed }}</span>
               </div>
             </div>
           </n-space>

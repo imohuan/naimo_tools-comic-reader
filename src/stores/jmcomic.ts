@@ -126,6 +126,11 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   // 自动滚动
   const autoScroll = ref(false);
   const autoScrollSpeed = useStorage("jm-auto-scroll-speed", 3);
+  // 伪虚拟化最大渲染数量
+  const virtualMaxRenderCount = useStorage(
+    "jm-virtual-max-render-count",
+    100
+  );
 
   // 快捷键配置
   const defaultHotkeys = {
@@ -310,6 +315,11 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     showSettings.value = !showSettings.value;
   }
 
+  function setVirtualMaxRenderCount(count: number) {
+    const safe = Math.max(20, Math.min(500, Math.floor(count || 0)));
+    virtualMaxRenderCount.value = safe;
+  }
+
   // 设置 rightTab
   function setRightTab(tab: "detail" | "images") {
     readingState.value.rightTab = tab;
@@ -430,6 +440,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     // 自动滚动
     autoScroll,
     autoScrollSpeed,
+    virtualMaxRenderCount,
 
     // 快捷键
     hotkeys,
@@ -461,6 +472,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     setImageScale,
     setDetailLoading,
     toggleSettings,
+    setVirtualMaxRenderCount,
     setRightTab,
     restoreReadingState,
     splitSize,

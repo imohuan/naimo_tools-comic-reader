@@ -9,16 +9,13 @@
     <n-scrollbar style="max-height: 70vh">
       <div class="flex flex-col gap-4 pr-4">
         <n-alert type="warning" :closable="false" show-icon>
-          JMComic
-          有严格的防盗链保护。要使用此页面，您必须提供一个能转发请求并修改
-          Headers 的后端代理地址。
+          JMComic 有严格的防盗链保护。要使用此页面，您必须提供一个能转发请求并修改 Headers
+          的后端代理地址。
         </n-alert>
 
         <n-divider>代理设置</n-divider>
         <div>
-          <label class="block text-sm font-medium mb-1"
-            >代理服务 URL (CORS Proxy)</label
-          >
+          <label class="block text-sm font-medium mb-1">代理服务 URL (CORS Proxy)</label>
           <n-select
             v-model:value="localSettings.proxyUrl"
             :options="proxyUrlOptions"
@@ -28,16 +25,14 @@
             placeholder="例如: http://localhost:3000/proxy?url="
           />
           <p class="text-xs text-gray-500 mt-1">
-            代理需要处理请求并将图片数据以二进制流返回，同时设置 Header:
-            `Referer: https://jmcomic.me/`
+            代理需要处理请求并将图片数据以二进制流返回，同时设置 Header: `Referer:
+            https://jmcomic.me/`
           </p>
         </div>
 
         <n-divider>API 配置</n-divider>
         <div>
-          <label class="block text-sm font-medium mb-1"
-            >API 域名 (API_DOMAIN)</label
-          >
+          <label class="block text-sm font-medium mb-1">API 域名 (API_DOMAIN)</label>
           <n-select
             v-model:value="localSettings.apiDomain"
             :options="apiDomainOptions"
@@ -49,9 +44,7 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-1"
-            >图片域名 (IMAGE_DOMAIN)</label
-          >
+          <label class="block text-sm font-medium mb-1">图片域名 (IMAGE_DOMAIN)</label>
           <n-select
             v-model:value="localSettings.imageDomain"
             :options="imageDomainOptions"
@@ -91,9 +84,7 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-1"
-            >数据密钥 (APP_DATA_SECRET)</label
-          >
+          <label class="block text-sm font-medium mb-1">数据密钥 (APP_DATA_SECRET)</label>
           <n-select
             v-model:value="localSettings.appDataSecret"
             :options="dataSecretOptions"
@@ -105,9 +96,7 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-1"
-            >应用版本 (APP_VERSION)</label
-          >
+          <label class="block text-sm font-medium mb-1">应用版本 (APP_VERSION)</label>
           <n-select
             v-model:value="localSettings.appVersion"
             :options="appVersionOptions"
@@ -127,13 +116,9 @@
               placeholder="未设置时使用系统下载目录"
               readonly
             />
-            <n-button size="small" @click="handleSelectDownloadDir">
-              选择目录
-            </n-button>
+            <n-button size="small" @click="handleSelectDownloadDir"> 选择目录 </n-button>
           </div>
-          <p class="text-xs text-gray-500 mt-1">
-            用于批量下载章节图片时的保存位置。
-          </p>
+          <p class="text-xs text-gray-500 mt-1">用于批量下载章节图片时的保存位置。</p>
         </div>
 
         <n-divider>快捷键设置</n-divider>
@@ -164,9 +149,26 @@
                   :tooltip="false"
                   style="width: 200px"
                 />
-                <span class="text-sm font-mono w-10">{{
-                  store.autoScrollSpeed
-                }}</span>
+                <span class="text-sm font-mono w-10">{{ store.autoScrollSpeed }}</span>
+              </div>
+            </div>
+          </n-space>
+        </div>
+
+        <n-divider>阅读性能</n-divider>
+        <div>
+          <n-space vertical :size="12">
+            <div class="flex items-center justify-between">
+              <span>最大同时渲染图片数</span>
+              <div class="flex items-center gap-4 w-64">
+                <n-input-number
+                  v-model:value="store.virtualMaxRenderCount"
+                  :min="20"
+                  :max="500"
+                  :step="10"
+                  size="small"
+                  style="width: 160px"
+                />
               </div>
             </div>
           </n-space>
@@ -178,12 +180,8 @@
             缓存用于提升加载速度，自动在24小时后过期。您可以手动清除缓存以获取最新数据。
           </p>
           <div class="flex gap-2">
-            <n-button @click="clearCache('details')" size="small"
-              >清除详情缓存</n-button
-            >
-            <n-button @click="clearCache('chapters')" size="small"
-              >清除图片缓存</n-button
-            >
+            <n-button @click="clearCache('details')" size="small">清除详情缓存</n-button>
+            <n-button @click="clearCache('chapters')" size="small">清除图片缓存</n-button>
             <n-button @click="clearCache()" size="small" type="error"
               >清除所有缓存</n-button
             >
@@ -254,13 +252,9 @@ const imageDomainOptions = [
 
 const tokenSecretOptions = [{ label: "18comicAPP", value: "18comicAPP" }];
 
-const tokenSecret2Options = [
-  { label: "18comicAPPContent", value: "18comicAPPContent" },
-];
+const tokenSecret2Options = [{ label: "18comicAPPContent", value: "18comicAPPContent" }];
 
-const dataSecretOptions = [
-  { label: "185Hcomic3PAPP7R", value: "185Hcomic3PAPP7R" },
-];
+const dataSecretOptions = [{ label: "185Hcomic3PAPP7R", value: "185Hcomic3PAPP7R" }];
 
 const appVersionOptions = [
   { label: "1.7.5（最新）", value: "1.7.5" },

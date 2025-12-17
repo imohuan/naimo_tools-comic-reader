@@ -49,6 +49,11 @@ export const useComicStore = defineStore("comic", () => {
   const autoScrollSpeed = useStorage("comic-reader-auto-scroll-speed", 3);
   const autoScrollTimer = ref<number | null>(null);
   const rotation = ref(0);
+  // 伪虚拟化最大渲染数量
+  const virtualMaxRenderCount = useStorage(
+    "comic-reader-virtual-max-render-count",
+    100
+  );
 
   // 快捷键配置
   const defaultHotkeys = {
@@ -136,6 +141,11 @@ export const useComicStore = defineStore("comic", () => {
     showSettings.value = !showSettings.value;
   }
 
+  function setVirtualMaxRenderCount(count: number) {
+    const safe = Math.max(20, Math.min(500, Math.floor(count || 0)));
+    virtualMaxRenderCount.value = safe;
+  }
+
   async function pinManga(name: string) {
     const dirs = [...staticDirs.value].map((d) => String(d));
     try {
@@ -195,6 +205,7 @@ export const useComicStore = defineStore("comic", () => {
     rotation,
     hotkeys,
     showSettings,
+    virtualMaxRenderCount,
     // Computed
     hasCurrentManga,
     hasCurrentChapter,
@@ -215,6 +226,7 @@ export const useComicStore = defineStore("comic", () => {
     setAutoScrollSpeed,
     setRotation,
     toggleSettings,
+    setVirtualMaxRenderCount,
     pinManga,
     deleteManga,
   };

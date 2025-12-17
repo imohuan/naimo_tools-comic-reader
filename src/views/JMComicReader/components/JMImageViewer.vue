@@ -17,6 +17,7 @@
           v-for="item in virtualListItems"
           :key="item.key"
           class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0 relative"
+          :ref="(el) => setItemRef(el as HTMLElement | null, item)"
         >
           <div class="absolute top-3 left-3 z-10 flex">
             <FavoriteToggle
@@ -59,11 +60,13 @@ const scrollbarRef = ref<any>(null);
 const scrollContainerRef = ref<HTMLElement | null>(null);
 const scrollTop = ref(0);
 const imageRefs = new Map<string, HTMLImageElement>();
+// 每个图片外层容器的引用，用于计算当前页
+const itemRefs = new Map<string, HTMLElement>();
 const favoriteMap = reactive(new Map<string, string>());
 const favoriteLoading = reactive(new Set<string>());
 
-// 将图片列表转换为渲染所需的格式
-const virtualListItems = computed(() => {
+// 将图片列表转换为渲染所需的格式（基础完整列表）
+const imageItems = computed(() => {
   return store.readingImages.map((img, index) => ({
     key: `${img.url}-${index}`,
     url: img.url,
@@ -73,12 +76,64 @@ const virtualListItems = computed(() => {
   }));
 });
 
-// 设置图片引用
+// 伪虚拟化配置：缓冲区（前置）
+const VIRTUAL_BUFFER_BEFORE = 40;
+
+// 伪虚拟化最大渲染数量（来自设置，可配置）
+const maxRenderCount = computed(() => {
+  const raw = (store as any).virtualMaxRenderCount ?? 100;
+  const value = typeof raw === "number" ? raw : Number(raw) || 100;
+  return Math.max(20, Math.min(500, value));
+});
+
+// 当前窗口起始下标（基于当前图片索引来滑动窗口）
+const virtualStartIndex = computed(() => {
+  const all = imageItems.value;
+  const total = all.length;
+  const limit = maxRenderCount.value;
+  if (total <= limit) return 0;
+
+  const currentIndex = Math.min(
+    Math.max(0, store.currentImageIndex),
+    total - 1
+  );
+
+  let start = Math.max(0, currentIndex - VIRTUAL_BUFFER_BEFORE);
+  let end = Math.min(total, start + limit);
+
+  // 确保窗口大小尽量保持 limit
+  if (end - start < limit) {
+    start = Math.max(0, end - limit);
+  }
+
+  return start;
+});
+
+// 实际用于渲染的伪虚拟化列表
+const virtualListItems = computed(() => {
+  const all = imageItems.value;
+  const limit = maxRenderCount.value;
+  if (all.length <= limit) return all;
+  const start = virtualStartIndex.value;
+  const end = Math.min(all.length, start + limit);
+  return all.slice(start, end);
+});
+
+// 设置图片引用（用于截图/收藏）
 function setImageRef(el: any, item: any) {
   if (el && item) {
     imageRefs.set(item.key, el);
   } else if (!el && item) {
     imageRefs.delete(item.key);
+  }
+}
+
+// 设置图片容器引用（用于当前页计算和缩放锚点）
+function setItemRef(el: HTMLElement | null, item: any) {
+  if (el && item) {
+    itemRefs.set(item.key, el);
+  } else if (!el && item) {
+    itemRefs.delete(item.key);
   }
 }
 
@@ -256,22 +311,26 @@ function updateCurrentPage() {
   if (!container || !viewerContainer.value) return;
 
   const centerScrollTop = container.scrollTop + container.clientHeight / 2;
-  let closestIndex = 0;
+  let closestIndexInWindow = 0;
   let minDistance = Number.POSITIVE_INFINITY;
 
   virtualListItems.value.forEach((item, index) => {
-    const img = imageRefs.get(item.key);
-    if (!img) return;
-    const offsetTop = img.offsetTop;
-    const itemCenter = offsetTop + img.clientHeight / 2;
+    const wrapper = itemRefs.get(item.key);
+    if (!wrapper) return;
+    const offsetTop = wrapper.offsetTop;
+    const itemCenter = offsetTop + wrapper.clientHeight / 2;
     const distance = Math.abs(itemCenter - centerScrollTop);
     if (distance < minDistance) {
       minDistance = distance;
-      closestIndex = index;
+      closestIndexInWindow = index;
     }
   });
 
-  const targetPage = Math.min(Math.max(1, closestIndex + 1), store.readingImages.length);
+  const globalIndex = virtualStartIndex.value + closestIndexInWindow;
+  const targetPage = Math.min(
+    Math.max(1, globalIndex + 1),
+    store.readingImages.length
+  );
 
   if (targetPage !== store.currentImageIndex + 1) {
     store.setCurrentImageIndex(targetPage - 1);
@@ -294,13 +353,65 @@ function preloadVisibleImages() {
   // JM 阅读器中依赖 LazyFileImage 自身的懒加载，不再额外预加载
 }
 
+// 带锚点的缩放：保持当前页在视口中的相对位置尽量不变
+function setScaleWithAnchor(targetScale: number) {
+  const container = getScrollContainer();
+  let anchorOffset: number | null = null;
+
+  if (container && virtualListItems.value.length > 0) {
+    const currentIndex = Math.min(
+      Math.max(0, store.currentImageIndex),
+      imageItems.value.length - 1
+    );
+    const currentItem = imageItems.value[currentIndex];
+    const wrapper = currentItem ? itemRefs.get(currentItem.key) : null;
+
+    if (wrapper) {
+      const center = wrapper.offsetTop + wrapper.clientHeight / 2;
+      // 记录当前页中心相对视口顶部的偏移量（缩放后保持这个偏移不变）
+      anchorOffset = center - container.scrollTop;
+    } else {
+      // 兜底：使用视口中心作为锚点
+      anchorOffset = container.clientHeight / 2;
+    }
+  }
+
+  const newZoom = Math.max(10, Math.min(100, targetScale));
+  const oldZoom = store.imageScale;
+  if (newZoom === oldZoom) return;
+
+  store.setImageScale(newZoom);
+
+  // 等缩放生效后，再根据锚点调整滚动，让当前图片在视口中的位置尽量保持不变
+  nextTick(() => {
+    const containerAfter = getScrollContainer();
+    if (!containerAfter || anchorOffset == null) return;
+
+    const currentIndex = Math.min(
+      Math.max(0, store.currentImageIndex),
+      imageItems.value.length - 1
+    );
+    const currentItem = imageItems.value[currentIndex];
+    const wrapper = currentItem ? itemRefs.get(currentItem.key) : null;
+
+    if (!wrapper) return;
+
+    const newCenter = wrapper.offsetTop + wrapper.clientHeight / 2;
+    const targetScrollTop = newCenter - anchorOffset;
+
+    containerAfter.scrollTo({
+      top: Math.max(0, targetScrollTop),
+      left: 0,
+    });
+  });
+}
+
 // Ctrl + 滚轮缩放
 function handleWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -5 : 5;
-    const newZoom = Math.max(10, Math.min(100, store.imageScale + delta));
-    store.setImageScale(newZoom);
+    setScaleWithAnchor(store.imageScale + delta);
   }
 }
 
@@ -350,6 +461,7 @@ defineExpose({
       scrollbarRef.value.scrollTo({ top: currentScroll + delta });
     }
   },
+  setScaleWithAnchor,
 });
 
 // 监听当前章节变化，重置滚动位置
@@ -376,6 +488,7 @@ watch(
   () => {
     // 清理旧的高度缓存和图片引用
     imageRefs.clear();
+    itemRefs.clear();
     favoriteMap.clear();
     favoriteLoading.clear();
   },
