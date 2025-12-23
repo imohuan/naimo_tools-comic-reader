@@ -50,6 +50,8 @@ export const useJMComicStore = defineStore("jmcomic", () => {
   // 设置
   const settings = useStorage<ComicAPISettings>("jm-settings", {
     proxyUrl: "",
+    imageProxyEnabled: true,
+    apiProxyEnabled: false,
     apiDomain: "www.cdnblackmyth.club",
     imageDomain: "cdn-msp2.jmapiproxy2.cc",
     appTokenSecret: "18comicAPP",
@@ -160,6 +162,19 @@ export const useJMComicStore = defineStore("jmcomic", () => {
 
   // 缓存工具函数
   const cacheUtils = {
+    // 判断数据是否为空，不缓存空数据
+    isEmptyData(data: unknown) {
+      if (data === null || data === undefined) return true;
+      if (Array.isArray(data)) return data.length === 0;
+      if (typeof data === "object") {
+        const obj = data as Record<string, unknown>;
+        if (Object.keys(obj).length === 0) return true;
+        if ("images" in obj && Array.isArray((obj as any).images)) {
+          return (obj as any).images.length === 0;
+        }
+      }
+      return false;
+    },
     get<T>(key: string, type: CacheType): T | null {
       const cache = cacheStore.value[type];
       if (!cache || !cache[key]) return null;
@@ -177,6 +192,7 @@ export const useJMComicStore = defineStore("jmcomic", () => {
     },
 
     set<T>(key: string, data: T, type: CacheType) {
+      if (this.isEmptyData(data)) return;
       const cache = cacheStore.value[type];
       cacheStore.value[type] = {
         ...cache,

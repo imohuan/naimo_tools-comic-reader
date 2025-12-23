@@ -28,6 +28,16 @@
             代理需要处理请求并将图片数据以二进制流返回，同时设置 Header: `Referer:
             https://jmcomic.me/`
           </p>
+          <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-gray-300">启用图片代理</span>
+              <n-switch v-model:value="localSettings.imageProxyEnabled" />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-gray-300">启用 API 代理</span>
+              <n-switch v-model:value="localSettings.apiProxyEnabled" />
+            </div>
+          </div>
         </div>
 
         <n-divider>API 配置</n-divider>
@@ -234,11 +244,36 @@ watch(
 );
 
 const proxyUrlOptions = [
-  { label: "本地代理（推荐）", value: "http://localhost:3000/proxy?url=" },
+  {
+    label: "(默认) http://localhost:3000/proxy?url=",
+    value: "http://localhost:3000/proxy?url=",
+  },
+  {
+    label: "CorsProxy.io https://corsproxy.io/?",
+    value: "https://corsproxy.io/?",
+  },
+  {
+    label: "AllOrigins https://api.allorigins.win/get?url=",
+    value: "https://api.allorigins.win/get?url=",
+  },
+  {
+    label: "CORS.SH https://proxy.cors.sh/",
+    value: "https://proxy.cors.sh/",
+  },
+  {
+    label: "ThingProxy https://thingproxy.freeboard.io/fetch/",
+    value: "https://thingproxy.freeboard.io/fetch/",
+  },
+  {
+    label: "CORS Anywhere https://cors-anywhere.herokuapp.com/",
+    value: "https://cors-anywhere.herokuapp.com/",
+  },
   { label: "清空", value: "" },
 ];
 
 const apiDomainOptions = [
+  { label: "www.cdnbea.club", value: "www.cdnbea.club" },
+  { label: "www.cdnzack.cc", value: "www.cdnzack.cc" },
   { label: "www.cdnblackmyth.club", value: "www.cdnblackmyth.club" },
   { label: "jmcomic.me", value: "jmcomic.me" },
   { label: "jmcomic1.me", value: "jmcomic1.me" },
@@ -257,11 +292,9 @@ const tokenSecret2Options = [{ label: "18comicAPPContent", value: "18comicAPPCon
 const dataSecretOptions = [{ label: "185Hcomic3PAPP7R", value: "185Hcomic3PAPP7R" }];
 
 const appVersionOptions = [
-  { label: "1.7.5（最新）", value: "1.7.5" },
-  { label: "1.7.4", value: "1.7.4" },
-  { label: "1.7.3", value: "1.7.3" },
-  { label: "1.7.2", value: "1.7.2" },
-  { label: "1.7.1", value: "1.7.1" },
+  { label: "2.0.13", value: "2.0.13" },
+  { label: "2.0.6", value: "2.0.6" },
+  { label: "1.7.5", value: "1.7.5" },
 ];
 
 const saveSettings = () => {
@@ -272,6 +305,8 @@ const saveSettings = () => {
 const resetSettings = () => {
   localSettings.value = {
     proxyUrl: "",
+    imageProxyEnabled: true,
+    apiProxyEnabled: false,
     apiDomain: "www.cdnblackmyth.club",
     imageDomain: "cdn-msp2.jmapiproxy2.cc",
     appTokenSecret: "18comicAPP",

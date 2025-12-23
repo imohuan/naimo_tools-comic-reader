@@ -18,9 +18,7 @@
         @error="handleImgError"
       >
         <template #placeholder>
-          <div
-            class="flex items-center justify-center w-full h-full bg-gray-800"
-          >
+          <div class="flex items-center justify-center w-full h-full bg-gray-800">
             <n-spin size="small" />
           </div>
         </template>
@@ -63,14 +61,10 @@ const rootRef = ref<HTMLElement | null>(null);
 
 const getProxiedUrl = (url: string, isImage = false): string => {
   if (!url) return "";
-  if (
-    url.startsWith("data:") ||
-    url.startsWith("blob:") ||
-    url.includes("placeholder")
-  )
+  if (url.startsWith("data:") || url.startsWith("blob:") || url.includes("placeholder"))
     return url;
 
-  if (store.settings.proxyUrl) {
+  if (store.settings.proxyUrl && store.settings.imageProxyEnabled !== false) {
     const typeParam = isImage ? "&type=image" : "";
     return `${store.settings.proxyUrl}${encodeURIComponent(url)}${typeParam}`;
   }

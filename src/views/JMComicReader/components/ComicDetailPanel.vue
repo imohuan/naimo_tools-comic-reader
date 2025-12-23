@@ -211,7 +211,7 @@ const getProxiedUrl = (url: string, isImage = false): string => {
   )
     return url;
 
-  if (store.settings.proxyUrl) {
+  if (store.settings.proxyUrl && store.settings.imageProxyEnabled !== false) {
     const typeParam = isImage ? "&type=image" : "";
     return `${store.settings.proxyUrl}${encodeURIComponent(url)}${typeParam}`;
   }

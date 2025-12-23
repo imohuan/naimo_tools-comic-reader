@@ -9,6 +9,8 @@ export interface ComicAPISettings {
   appDataSecret?: string;
   appVersion?: string;
   proxyUrl?: string;
+  imageProxyEnabled?: boolean;
+  apiProxyEnabled?: boolean;
   downloadDir?: string;
 }
 
@@ -59,18 +61,31 @@ export class ComicAPI {
   private APP_TOKEN_SECRET_2: string = "";
   private APP_DATA_SECRET: string = "";
   private APP_VERSION: string = "";
+  private PROXY_URL: string = "";
+  private API_PROXY_ENABLED = false;
+
+  private buildApiUrl(path: string): string {
+    const rawUrl = `https://${this.API_DOMAIN}${path}`;
+    if (this.API_PROXY_ENABLED && this.PROXY_URL) {
+      return `${this.PROXY_URL}${encodeURIComponent(rawUrl)}&type=api`;
+    }
+    return rawUrl;
+  }
 
   constructor(settings: ComicAPISettings = {}) {
     this.updateSettings(settings);
   }
 
   updateSettings(settings: ComicAPISettings) {
-    this.API_DOMAIN = settings.apiDomain || "www.cdnblackmyth.club";
+    this.API_DOMAIN = settings.apiDomain || "www.cdnzack.cc";
     this.IMAGE_DOMAIN = settings.imageDomain || "cdn-msp2.jmapiproxy2.cc";
     this.APP_TOKEN_SECRET = settings.appTokenSecret || "18comicAPP";
     this.APP_TOKEN_SECRET_2 = settings.appTokenSecret2 || "18comicAPPContent";
     this.APP_DATA_SECRET = settings.appDataSecret || "185Hcomic3PAPP7R";
-    this.APP_VERSION = settings.appVersion || "1.7.5";
+    this.APP_VERSION = settings.appVersion || "2.0.6";
+    this.PROXY_URL = settings.proxyUrl || "";
+    this.API_PROXY_ENABLED =
+      settings.apiProxyEnabled !== undefined ? settings.apiProxyEnabled : false;
   }
 
   private md5(str: string): string {
@@ -199,8 +214,7 @@ export class ComicAPI {
     const timestamp = Math.floor(Date.now() / 1000);
     const token = this.generateToken(timestamp, isScrambleId);
     const tokenparam = `${timestamp},${this.APP_VERSION}`;
-
-    const url = `https://${this.API_DOMAIN}${path}`;
+    const url = this.buildApiUrl(path);
 
     const config: AxiosRequestConfig = {
       method,
@@ -231,8 +245,7 @@ export class ComicAPI {
       if (response.data && response.data.code !== undefined) {
         if (response.data.code !== 200) {
           throw new Error(
-            `API 返回错误: code=${response.data.code}, message=${
-              response.data.msg || "未知错误"
+            `API 返回错误: code=${response.data.code}, message=${response.data.msg || "未知错误"
             }`
           );
         }
@@ -241,10 +254,10 @@ export class ComicAPI {
           try {
             const decrypted = this.decryptData(timestamp, response.data.data);
             response.data.data = JSON.parse(decrypted);
-          } catch (e) {
+          } catch {
             try {
               response.data.data = JSON.parse(response.data.data);
-            } catch (e2) {
+            } catch {
               // 保持原样
             }
           }
@@ -310,7 +323,7 @@ export class ComicAPI {
     try {
       const scrambleResponse = await axios({
         method: "GET",
-        url: `https://${this.API_DOMAIN}/chapter_view_template`,
+        url: this.buildApiUrl("/chapter_view_template"),
         params: scrambleParams,
         headers: {
           token: scrambleToken,
