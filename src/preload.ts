@@ -20,6 +20,8 @@ interface ChapterInfo {
   chapterId: string;
   chapterTitle: string;
   order: number;
+  path?: string; // 章节的完整路径（相对于漫画根目录）
+  children?: ChapterInfo[]; // 支持嵌套章节
 }
 
 interface MangaItem {
@@ -71,60 +73,331 @@ function isImageFile(filename: string): boolean {
 }
 
 /**
+ * 检查目录中是否包含图片文件（递归检查，但限制深度）
+ */
+function hasImagesInDirectory(dirPath: string, maxDepth: number = 3): boolean {
+  if (maxDepth <= 0) return false;
+
+  try {
+    const items = fs.readdirSync(dirPath);
+    for (const item of items) {
+      const itemPath = path.join(dirPath, item);
+      try {
+        const stats = fs.statSync(itemPath);
+        if (stats.isFile() && isImageFile(item)) {
+          return true;
+        }
+        if (stats.isDirectory()) {
+          // 跳过一些常见的非章节目录
+          const lowerName = item.toLowerCase();
+          if (
+            lowerName === "audio_files" ||
+            lowerName === "processed_images" ||
+            lowerName === "processed" ||
+            lowerName === "audio" ||
+            item.startsWith(".")
+          ) {
+            continue;
+          }
+          // 递归检查子目录
+          if (hasImagesInDirectory(itemPath, maxDepth - 1)) {
+            return true;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 递归扫描目录结构，构建章节树
+ * 扁平化处理：如果中间层没有图片，直接跳过
+ */
+function scanDirectoryForChapters(
+  dirPath: string,
+  relativePath: string,
+  mangaName: string,
+  order: number,
+  maxDepth: number = 5
+): ChapterInfo | null {
+  if (maxDepth <= 0) return null;
+
+  try {
+    const items = fs.readdirSync(dirPath);
+    const sortedItems = items.sort(compareNaturalText);
+
+    // 检查当前目录是否有图片
+    let hasDirectImages = false;
+    const subDirs: Array<{ name: string; path: string }> = [];
+
+    for (const item of sortedItems) {
+      const itemPath = path.join(dirPath, item);
+      try {
+        const stats = fs.statSync(itemPath);
+
+        if (stats.isFile() && isImageFile(item)) {
+          hasDirectImages = true;
+        } else if (stats.isDirectory()) {
+          // 跳过一些常见的非章节目录
+          const lowerName = item.toLowerCase();
+          if (
+            lowerName === "audio_files" ||
+            lowerName === "processed_images" ||
+            lowerName === "processed" ||
+            lowerName === "audio" ||
+            item.startsWith(".")
+          ) {
+            continue;
+          }
+
+          // 检查子目录是否有图片
+          if (hasImagesInDirectory(itemPath, 3)) {
+            subDirs.push({
+              name: item,
+              path: relativePath ? `${relativePath}/${item}` : item,
+            });
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // 如果当前目录有图片，且没有子目录，则这是一个章节
+    if (hasDirectImages && subDirs.length === 0) {
+      return {
+        chapterId: `gen-${order}`,
+        chapterTitle: relativePath || mangaName,
+        order: order,
+        path: relativePath || "",
+      };
+    }
+
+    // 如果有子目录，递归处理
+    if (subDirs.length > 0) {
+      // 如果当前目录也有图片，需要创建一个虚拟章节
+      const children: ChapterInfo[] = [];
+      let childOrder = 1;
+
+      for (const subDir of subDirs) {
+        const subDirPath = path.join(dirPath, subDir.name);
+        const childChapter = scanDirectoryForChapters(
+          subDirPath,
+          subDir.path,
+          mangaName,
+          order * 1000 + childOrder,
+          maxDepth - 1
+        );
+        if (childChapter) {
+          children.push(childChapter);
+          childOrder++;
+        }
+      }
+
+      // 如果当前目录有图片，创建一个章节代表当前目录
+      if (hasDirectImages) {
+        children.unshift({
+          chapterId: `gen-${order}`,
+          chapterTitle: relativePath || mangaName,
+          order: order,
+          path: relativePath || "",
+        });
+      }
+
+      // 如果只有一个子章节，扁平化处理
+      if (children.length === 1 && !hasDirectImages) {
+        return children[0];
+      }
+
+      // 如果有多个子章节，返回父章节
+      if (children.length > 0) {
+        return {
+          chapterId: `gen-${order}`,
+          chapterTitle: relativePath || mangaName,
+          order: order,
+          path: relativePath || "",
+          children: children,
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`扫描目录失败: ${dirPath}`, error);
+    return null;
+  }
+}
+
+/**
+ * 扁平化章节树，将嵌套章节展开为扁平列表
+ * 如果中间层没有图片，直接跳过，只保留有图片的层级
+ */
+function flattenChapters(
+  chapters: ChapterInfo[],
+  basePath: string = ""
+): ChapterInfo[] {
+  const result: ChapterInfo[] = [];
+  let order = 1;
+
+  function traverse(chapter: ChapterInfo, parentPath: string) {
+    if (chapter.children && chapter.children.length > 0) {
+      // 如果有子章节，递归处理子章节
+      // 使用当前章节的标题作为父路径
+      const currentPath = parentPath
+        ? `${parentPath}/${chapter.chapterTitle}`
+        : chapter.chapterTitle;
+
+      chapter.children.forEach((child) => traverse(child, currentPath));
+
+      // 如果当前章节也有图片（有 path），也添加它
+      if (chapter.path !== undefined) {
+        const flatChapter: ChapterInfo = {
+          chapterId: chapter.chapterId || `gen-${order}`,
+          chapterTitle: currentPath,
+          order: order++,
+          path: chapter.path,
+        };
+        result.push(flatChapter);
+      }
+    } else {
+      // 没有子章节，直接添加
+      const fullPath = parentPath
+        ? `${parentPath}/${chapter.chapterTitle}`
+        : chapter.chapterTitle;
+      const flatChapter: ChapterInfo = {
+        chapterId: chapter.chapterId || `gen-${order}`,
+        chapterTitle: fullPath,
+        order: order++,
+        path: chapter.path || fullPath,
+      };
+      result.push(flatChapter);
+    }
+  }
+
+  chapters.forEach((chapter) => traverse(chapter, basePath));
+
+  // 重新排序
+  result.sort((a, b) => a.order - b.order);
+
+  // 重新分配 order
+  result.forEach((ch, index) => {
+    ch.order = index + 1;
+  });
+
+  return result;
+}
+
+/**
  * 从目录结构生成元数据
+ * 支持嵌套目录结构，自动过滤无图片目录，扁平化无效嵌套
  */
 function generateMetaFromStructure(
   folderPath: string,
   mangaName: string
 ): MangaMeta {
-  const items = fs.readdirSync(folderPath);
-  const chapters: ChapterInfo[] = [];
+  try {
+    const items = fs.readdirSync(folderPath);
+    const sortedItems = items.sort(compareNaturalText);
 
-  let hasImages = false;
-  let hasDirs = false;
-  const subDirs: string[] = [];
+    // 检查根目录是否有图片
+    let hasRootImages = false;
+    const validSubDirs: Array<{ name: string; path: string }> = [];
 
-  // 排序
-  const sortedItems = items.sort(compareNaturalText);
+    for (const item of sortedItems) {
+      const itemPath = path.join(folderPath, item);
+      try {
+        const stats = fs.statSync(itemPath);
 
-  for (const item of sortedItems) {
-    const itemPath = path.join(folderPath, item);
-    const stats = fs.statSync(itemPath);
+        if (stats.isFile() && isImageFile(item)) {
+          hasRootImages = true;
+        } else if (stats.isDirectory()) {
+          // 跳过一些常见的非章节目录
+          const lowerName = item.toLowerCase();
+          if (
+            lowerName === "audio_files" ||
+            lowerName === "processed_images" ||
+            lowerName === "processed" ||
+            lowerName === "audio" ||
+            item.startsWith(".")
+          ) {
+            continue;
+          }
 
-    if (stats.isDirectory()) {
-      if (fs.readdirSync(itemPath).length > 0) {
-        hasDirs = true;
-        subDirs.push(item);
+          // 检查子目录是否有图片
+          if (hasImagesInDirectory(itemPath, 3)) {
+            validSubDirs.push({
+              name: item,
+              path: item,
+            });
+          }
+        }
+      } catch {
+        continue;
       }
-    } else if (stats.isFile() && isImageFile(item)) {
-      hasImages = true;
     }
-  }
 
-  if (hasDirs) {
-    // 多章节模式
-    subDirs.forEach((chapterName, index) => {
+    const chapters: ChapterInfo[] = [];
+
+    // 如果根目录有图片，且没有有效子目录，则为单章节模式
+    if (hasRootImages && validSubDirs.length === 0) {
       chapters.push({
-        chapterId: `gen-${index + 1}`,
-        chapterTitle: chapterName,
-        order: index + 1,
+        chapterId: "gen-1",
+        chapterTitle: mangaName,
+        order: 1,
+        path: "",
       });
-    });
-  } else if (hasImages) {
-    // 单章节模式
-    chapters.push({
-      chapterId: "gen-1",
-      chapterTitle: mangaName,
-      order: 1,
-    });
-  }
+    } else if (validSubDirs.length > 0) {
+      // 多章节模式：递归扫描每个子目录
+      let order = 1;
+      for (const subDir of validSubDirs) {
+        const subDirPath = path.join(folderPath, subDir.name);
+        const chapter = scanDirectoryForChapters(
+          subDirPath,
+          subDir.path,
+          mangaName,
+          order,
+          5
+        );
+        if (chapter) {
+          chapters.push(chapter);
+          order++;
+        }
+      }
 
-  return {
-    id: `gen-${mangaName}`,
-    name: mangaName,
-    chapterInfos: chapters,
-    generated: true,
-  };
+      // 如果根目录也有图片，添加根目录章节
+      if (hasRootImages) {
+        chapters.unshift({
+          chapterId: "gen-0",
+          chapterTitle: mangaName,
+          order: 0,
+          path: "",
+        });
+      }
+    }
+
+    // 扁平化章节树
+    const flatChapters = flattenChapters(chapters);
+
+    return {
+      id: `gen-${mangaName}`,
+      name: mangaName,
+      chapterInfos: flatChapters,
+      generated: true,
+    };
+  } catch (error) {
+    console.error(`生成元数据失败: ${folderPath}`, error);
+    return {
+      id: `gen-${mangaName}`,
+      name: mangaName,
+      chapterInfos: [],
+      generated: true,
+    };
+  }
 }
 
 /**
@@ -185,6 +458,11 @@ async function getMangaList(staticDirs: string[]): Promise<MangaItem[]> {
           meta = generateMetaFromStructure(folderPath, name);
         }
 
+        // 过滤掉没有有效章节的漫画（没有图片的目录）
+        if (meta.chapterInfos.length === 0) {
+          continue;
+        }
+
         // 确保所有数据都是可序列化的，手动构建纯对象
         const mtimeMs = Number(stats.mtimeMs);
         const st_mtime = Number(mtimeMs / 1000);
@@ -194,11 +472,14 @@ async function getMangaList(staticDirs: string[]): Promise<MangaItem[]> {
           meta: {
             id: String(meta.id),
             name: String(meta.name),
-            chapterInfos: meta.chapterInfos.map((ch) => ({
-              chapterId: String(ch.chapterId),
-              chapterTitle: String(ch.chapterTitle),
-              order: Number(ch.order),
-            })),
+            chapterInfos: meta.chapterInfos.map((ch) => {
+              // 只返回类型定义中要求的字段，忽略 path 和 children
+              return {
+                chapterId: String(ch.chapterId),
+                chapterTitle: String(ch.chapterTitle),
+                order: Number(ch.order),
+              };
+            }),
             ...(meta.generated !== undefined && {
               generated: Boolean(meta.generated),
             }),
@@ -255,12 +536,15 @@ async function getChapterImages(
   }
 
   // 确定章节路径
+  // chapterInfo 可能是扁平化后的路径，如 "第一章/子目录" 或 "第一章"
   let chapterPath: string;
   if (mangaName === chapterInfo) {
     // 单章节模式
     chapterPath = mangaPath;
   } else {
-    chapterPath = path.join(mangaPath, chapterInfo);
+    // 支持嵌套路径，将 "/" 或 "\" 转换为系统路径分隔符
+    const normalizedPath = chapterInfo.replace(/[/\\]/g, path.sep);
+    chapterPath = path.join(mangaPath, normalizedPath);
   }
 
   const stats = await fsPromises.stat(chapterPath);
@@ -629,8 +913,5 @@ if (typeof module !== "undefined" && module.exports) {
 
 // ==================== 类型扩展 ====================
 
-declare global {
-  interface Window {
-    comicReaderAPI: typeof comicReaderAPI;
-  }
-}
+// 类型扩展在 types/comic-reader.d.ts 中定义
+

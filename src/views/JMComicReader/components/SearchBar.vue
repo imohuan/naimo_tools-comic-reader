@@ -83,6 +83,14 @@
     >
       搜索
     </n-button>
+    <n-button
+      @click="$emit('toggle-select-mode')"
+      size="medium"
+      tertiary
+      class="transition-all duration-200"
+    >
+      多选
+    </n-button>
   </div>
 </template>
 
@@ -94,6 +102,7 @@ import { SearchSort } from "@/utils/comic-api";
 
 defineEmits<{
   "show-settings": [];
+  "toggle-select-mode": [];
 }>();
 
 const store = useJMComicStore();

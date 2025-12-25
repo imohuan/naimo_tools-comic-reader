@@ -3,13 +3,15 @@
     :show="show"
     preset="card"
     title="下载管理"
-    style="width: 80%; max-width: 1200px"
+    style="width: 80%; max-width: 1200px; max-height: 90vh"
     :mask-closable="true"
     :closable="true"
     @update:show="onUpdateShow"
   >
-    <div class="space-y-4">
-      <div class="flex items-center justify-between text-xs text-gray-400">
+    <div class="flex flex-col" style="max-height: calc(90vh - 120px)">
+      <div
+        class="flex items-center justify-between text-xs text-gray-400 mb-4 flex-shrink-0"
+      >
         <div>
           共 {{ downloadStore.totalChapters }} 章节，已完成
           {{ downloadStore.finishedChapters }} 章节
@@ -38,78 +40,73 @@
         </div>
       </div>
 
-      <template v-if="downloadStore.comicGroups.length > 0">
-        <n-collapse
-          :accordion="false"
-          :default-expanded-names="defaultExpandedNames"
-        >
-          <n-collapse-item
-            v-for="group in downloadStore.comicGroups"
-            :key="group.key"
-            :title="`${group.comicTitle} (${group.finishedChapters}/${group.totalChapters})`"
-            :name="group.key"
-          >
-            <div class="space-y-3">
-              <div
-                v-for="chapter in group.chapters"
-                :key="chapter.chapterId"
-                class="space-y-1 pl-6"
-              >
+      <div class="flex-1 overflow-y-auto min-h-0">
+        <template v-if="downloadStore.comicGroups.length > 0">
+          <n-collapse :accordion="false" :default-expanded-names="defaultExpandedNames">
+            <n-collapse-item
+              v-for="group in downloadStore.comicGroups"
+              :key="group.key"
+              :title="`${group.comicTitle} (${group.finishedChapters}/${group.totalChapters})`"
+              :name="group.key"
+            >
+              <div class="space-y-3">
                 <div
-                  class="flex items-center justify-between text-xs text-gray-300 gap-3"
+                  v-for="chapter in group.chapters"
+                  :key="chapter.chapterId"
+                  class="space-y-1 pl-6"
                 >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span class="truncate">{{ chapter.chapterTitle }}</span>
-                    <n-tag size="tiny" :type="statusTagType(chapter.status)">
-                      {{ statusText(chapter.status) }}
-                    </n-tag>
+                  <div
+                    class="flex items-center justify-between text-xs text-gray-300 gap-3"
+                  >
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="truncate">{{ chapter.chapterTitle }}</span>
+                      <n-tag size="tiny" :type="statusTagType(chapter.status)">
+                        {{ statusText(chapter.status) }}
+                      </n-tag>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="whitespace-nowrap text-right text-gray-400">
+                        {{ progressText(chapter) }}
+                      </span>
+                      <n-button
+                        size="tiny"
+                        text
+                        type="error"
+                        @click="downloadStore.deleteDownload(chapter.chapterId)"
+                      >
+                        删除
+                      </n-button>
+                    </div>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <span class="whitespace-nowrap text-right text-gray-400">
-                      {{ progressText(chapter) }}
-                    </span>
-                    <n-button
-                      size="tiny"
-                      text
-                      type="error"
-                      @click="downloadStore.deleteDownload(chapter.chapterId)"
-                    >
-                      删除
-                    </n-button>
+                  <n-progress
+                    v-if="chapter.total > 0"
+                    type="line"
+                    :percentage="Math.round((chapter.finished / chapter.total) * 100)"
+                    :show-indicator="false"
+                    status="success"
+                  />
+                  <div v-else class="text-xs text-gray-500 italic">待加载章节图片…</div>
+                  <div
+                    v-if="chapter.status === 'error' && chapter.error"
+                    class="text-xs text-red-400"
+                  >
+                    {{ chapter.error }}
                   </div>
-                </div>
-                <n-progress
-                  v-if="chapter.total > 0"
-                  type="line"
-                  :percentage="
-                    Math.round((chapter.finished / chapter.total) * 100)
-                  "
-                  :show-indicator="false"
-                  status="success"
-                />
-                <div v-else class="text-xs text-gray-500 italic">
-                  待加载章节图片…
-                </div>
-                <div
-                  v-if="chapter.status === 'error' && chapter.error"
-                  class="text-xs text-red-400"
-                >
-                  {{ chapter.error }}
                 </div>
               </div>
-            </div>
-          </n-collapse-item>
-        </n-collapse>
-      </template>
-      <template v-else>
-        <div
-          class="py-10 flex flex-col items-center justify-center text-gray-500 text-sm"
-        >
-          <n-empty description="暂无下载任务" />
-        </div>
-      </template>
+            </n-collapse-item>
+          </n-collapse>
+        </template>
+        <template v-else>
+          <div
+            class="py-10 flex flex-col items-center justify-center text-gray-500 text-sm"
+          >
+            <n-empty description="暂无下载任务" />
+          </div>
+        </template>
+      </div>
 
-      <div class="flex justify-end gap-2 mt-2">
+      <div class="flex justify-end gap-2 mt-2 flex-shrink-0">
         <n-button size="small" @click="onCancel">关闭</n-button>
       </div>
     </div>
@@ -167,18 +164,12 @@ const statusTagType = (status: string) => {
   }
 };
 
-const progressText = (chapter: {
-  finished: number;
-  total: number;
-  status: string;
-}) => {
+const progressText = (chapter: { finished: number; total: number; status: string }) => {
   if (chapter.total <= 0) {
     return "待加载";
   }
   const percent =
-    chapter.total > 0
-      ? Math.round((chapter.finished / chapter.total) * 100)
-      : 0;
+    chapter.total > 0 ? Math.round((chapter.finished / chapter.total) * 100) : 0;
   return `${chapter.finished}/${chapter.total} (${percent}%)`;
 };
 

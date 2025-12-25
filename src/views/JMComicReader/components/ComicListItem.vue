@@ -2,7 +2,11 @@
   <div
     ref="rootRef"
     class="bg-cardbg rounded-lg overflow-hidden hover:ring-2 ring-primary transition cursor-pointer group"
-    :class="{ 'ring-2 ring-primary': isActive }"
+    :class="{
+      'ring-2 ring-primary': isActive && !selectMode,
+      'ring-2 ring-blue-500': selectMode && selected,
+      'ring-2 ring-gray-600': selectMode && !selected,
+    }"
     @click="handleClick"
   >
     <div class="aspect-[2/3] overflow-hidden relative">
@@ -50,10 +54,13 @@ const props = defineProps<{
   isActive: boolean;
   container: HTMLElement | null;
   isSidebarCollapsed?: boolean;
+  selectMode?: boolean;
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [comic: any];
+  "toggle-select": [comic: any];
 }>();
 
 const store = useJMComicStore();
@@ -85,7 +92,11 @@ const scrollIntoViewIfNeeded = async () => {
 };
 
 const handleClick = () => {
-  emit("select", props.comic);
+  if (props.selectMode) {
+    emit("toggle-select", props.comic);
+  } else {
+    emit("select", props.comic);
+  }
 };
 
 onMounted(() => {

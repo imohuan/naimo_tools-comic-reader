@@ -301,20 +301,20 @@ function handleScroll(e: Event) {
   scrollTop.value = target.scrollTop;
   updateCurrentPage();
 
-  // 检查是否接近底部，如果是则触发加载下一章
-  const scrollHeight = target.scrollHeight;
-  const clientHeight = target.clientHeight;
-  const distanceFromBottom = scrollHeight - (target.scrollTop + clientHeight);
+  // // 检查是否接近底部，如果是则触发加载下一章
+  // const scrollHeight = target.scrollHeight;
+  // const clientHeight = target.clientHeight;
+  // const distanceFromBottom = scrollHeight - (target.scrollTop + clientHeight);
 
-  // 距离底部 500px 时加载下一章（防抖）
-  if (distanceFromBottom < 500 && !isLoadingNextChapter.value) {
-    if (loadNextChapterTimer) {
-      clearTimeout(loadNextChapterTimer);
-    }
-    loadNextChapterTimer = window.setTimeout(() => {
-      loadNextChapterIfAvailable();
-    }, 300);
-  }
+  // // 距离底部 500px 时加载下一章（防抖）
+  // if (distanceFromBottom < 500 && !isLoadingNextChapter.value) {
+  //   if (loadNextChapterTimer) {
+  //     clearTimeout(loadNextChapterTimer);
+  //   }
+  //   loadNextChapterTimer = window.setTimeout(() => {
+  //     loadNextChapterIfAvailable();
+  //   }, 300);
+  // }
 }
 
 // Ctrl + 滚轮缩放

@@ -340,18 +340,38 @@ export const useJMDownloadStore = defineStore("jmDownload", () => {
     }
   };
 
-  const startDownload = async (chapterIds: string[]) => {
+  const startDownload = async (
+    chapterIds: string[],
+    chapterInfoMap?: Record<
+      string,
+      { comicTitle: string; chapterTitle: string }
+    >
+  ) => {
     if (!chapterIds.length) return false;
 
     let added = false;
-    const comicTitle = comicStore.currentComic?.title || "未知作品";
+    const defaultComicTitle = comicStore.currentComic?.title || "未知作品";
 
     chapterIds.forEach((id) => {
       if (chapterDownloads[id]) return;
-      const chapterInfo =
-        comicStore.chapterList?.find((chapter: any) => chapter.id === id) ||
-        null;
-      const chapterTitle = chapterInfo?.title || `章节 ${id}`;
+
+      let comicTitle = defaultComicTitle;
+      let chapterTitle = `章节 ${id}`;
+
+      // 如果提供了章节信息映射，使用它
+      if (chapterInfoMap && chapterInfoMap[id]) {
+        comicTitle = chapterInfoMap[id].comicTitle;
+        chapterTitle = chapterInfoMap[id].chapterTitle;
+      } else {
+        // 否则尝试从当前漫画的章节列表中查找
+        const chapterInfo =
+          comicStore.chapterList?.find((chapter: any) => chapter.id === id) ||
+          null;
+        if (chapterInfo) {
+          chapterTitle = chapterInfo.title || chapterTitle;
+        }
+      }
+
       chapterDownloads[id] = {
         chapterId: id,
         chapterTitle,

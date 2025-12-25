@@ -182,7 +182,10 @@
               >
                 <div class="h-full flex flex-col min-h-0">
                   <div class="p-3 flex-shrink-0 border-b border-gray-800/50">
-                    <SearchBar @show-settings="store.toggleSettings()" />
+                    <SearchBar
+                      @show-settings="store.toggleSettings()"
+                      @toggle-select-mode="handleToggleSelectMode"
+                    />
                   </div>
                   <div class="flex-1 min-h-0 overflow-hidden">
                     <ComicList
@@ -708,6 +711,12 @@ const handleSelectChapter = async (chapter: any) => {
     console.error("获取章节图片失败:", error);
   } finally {
     store.setDetailLoading(false);
+  }
+};
+
+const handleToggleSelectMode = () => {
+  if (comicListRef.value) {
+    (comicListRef.value as any).toggleSelectMode();
   }
 };
 
