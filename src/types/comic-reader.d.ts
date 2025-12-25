@@ -48,7 +48,7 @@ export interface SaveDownloadImageOptions {
 }
 
 export interface ComicReaderAPI {
-  getMangaList(staticDirs: string[]): Promise<MangaItem[]>;
+  getMangaList(staticDirs: string[], expanded?: boolean): Promise<MangaItem[]>;
   getChapterImages(
     staticDirs: string[],
     mangaName: string,

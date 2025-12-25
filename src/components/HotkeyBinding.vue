@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="flex items-center justify-between py-2 px-3 border border-gray-700 rounded"
-  >
+  <div class="flex items-center justify-between py-2 px-3 border border-gray-700 rounded">
     <span class="text-sm">{{ label }}</span>
     <div class="flex items-center gap-2">
       <n-button v-if="!isListening" size="small" @click="startListening">

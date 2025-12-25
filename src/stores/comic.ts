@@ -70,6 +70,21 @@ export const useComicStore = defineStore("comic", () => {
   // 设置面板显示
   const showSettings = ref(false);
 
+  // 列表布局模式：'list' | 'grid'
+  const listLayoutMode = useStorage<"list" | "grid">(
+    "comic-reader-list-layout-mode",
+    "list"
+  );
+
+  // 搜索关键词
+  const searchKeyword = ref("");
+
+  // 侧边栏宽度
+  const sidebarWidth = useStorage("comic-reader-sidebar-width", 300);
+
+  // 展开模式：展开时每个章节作为独立项显示
+  const expandedMode = useStorage("comic-reader-expanded-mode", false);
+
   // 计算属性
   const hasCurrentManga = computed(() => currentManga.value !== null);
   const hasCurrentChapter = computed(() => currentChapter.value !== "");
@@ -146,6 +161,22 @@ export const useComicStore = defineStore("comic", () => {
     virtualMaxRenderCount.value = safe;
   }
 
+  function setListLayoutMode(mode: "list" | "grid") {
+    listLayoutMode.value = mode;
+  }
+
+  function setSearchKeyword(keyword: string) {
+    searchKeyword.value = keyword;
+  }
+
+  function setSidebarWidth(width: number) {
+    sidebarWidth.value = Math.max(200, Math.min(800, width));
+  }
+
+  function toggleExpandedMode() {
+    expandedMode.value = !expandedMode.value;
+  }
+
   async function pinManga(name: string) {
     const dirs = [...staticDirs.value].map((d) => String(d));
     try {
@@ -206,6 +237,10 @@ export const useComicStore = defineStore("comic", () => {
     hotkeys,
     showSettings,
     virtualMaxRenderCount,
+    listLayoutMode,
+    searchKeyword,
+    sidebarWidth,
+    expandedMode,
     // Computed
     hasCurrentManga,
     hasCurrentChapter,
@@ -227,6 +262,10 @@ export const useComicStore = defineStore("comic", () => {
     setRotation,
     toggleSettings,
     setVirtualMaxRenderCount,
+    setListLayoutMode,
+    setSearchKeyword,
+    setSidebarWidth,
+    toggleExpandedMode,
     pinManga,
     deleteManga,
   };

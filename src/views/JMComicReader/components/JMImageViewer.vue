@@ -16,10 +16,10 @@
         <div
           v-for="item in virtualListItems"
           :key="item.key"
-          class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0 relative"
+          class="w-full flex items-center justify-center outline-none focus:outline-none ring-0 focus:ring-0 relative group"
           :ref="(el) => setItemRef(el as HTMLElement | null, item)"
         >
-          <div class="absolute top-3 left-3 z-10 flex">
+          <div class="absolute top-3 left-3 z-10 flex opacity-0 group-hover:opacity-100 transition-opacity">
             <FavoriteToggle
               :favorited="isItemFavorited(item.key)"
               :loading="isFavoriteBusy(item.key)"

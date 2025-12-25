@@ -13,12 +13,7 @@
           class="text-gray-400 hover:text-white"
         >
           <template #icon>
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -57,12 +52,7 @@
           @click="store.toggleAutoScroll()"
         >
           <template #icon>
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -77,12 +67,7 @@
         <!-- 设置按钮 -->
         <n-button size="small" @click="store.toggleSettings()">
           <template #icon>
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -121,59 +106,128 @@
     </header>
 
     <!-- 主体内容区 -->
-    <div class="flex flex-1 overflow-hidden relative">
-      <!-- 左侧侧边栏 - 固定宽度 300px -->
-      <aside
-        class="bg-[#18181c] border-r border-gray-800 flex flex-col shrink-0 z-10"
-        :style="{
-          width: store.sidebarCollapsed ? '0px' : '300px',
-          opacity: store.sidebarCollapsed ? 0 : 1,
-          overflow: store.sidebarCollapsed ? 'hidden' : 'visible',
-          minWidth: store.sidebarCollapsed ? '0' : '300px',
-          maxWidth: store.sidebarCollapsed ? '0' : '300px',
-        }"
+    <div ref="containerRef" class="flex flex-1 overflow-hidden relative">
+      <n-split
+        v-if="!store.sidebarCollapsed"
+        v-model:size="sidebarSizePercent"
+        :max="0.5"
+        :min="0.1"
+        direction="horizontal"
+        :resizable="true"
+        :resize-trigger-size="8"
+        class="flex-1 h-full overflow-hidden"
+        @update:size="handleSplitSizeChange"
       >
-        <div
-          class="p-3 flex justify-between items-center border-b border-gray-800/50 shrink-0"
-        >
-          <span class="text-xs font-bold text-gray-500 tracking-wider"
-            >书架 LIBRARY</span
+        <template #1>
+          <!-- 左侧侧边栏 -->
+          <aside
+            class="bg-[#18181c] border-r border-gray-800 flex flex-col h-full z-10 overflow-hidden"
           >
-          <n-button text size="small" @click="loadMangaList">
-            <template #icon>
-              <svg
-                class="w-4 h-4"
-                :class="{ 'animate-spin': store.loading.library }"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div
+              class="p-3 flex justify-between items-center border-b border-gray-800/50 shrink-0"
+            >
+              <div class="flex items-center gap-2">
+                <n-button
+                  text
+                  size="small"
+                  :type="store.expandedMode ? 'primary' : 'default'"
+                  @click="
+                    store.toggleExpandedMode();
+                    loadMangaList();
+                  "
+                  :title="
+                    store.expandedMode
+                      ? '展开模式：每个章节独立显示'
+                      : '折叠模式：按漫画分组显示'
+                  "
+                >
+                  <template #icon>
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <!-- 展开模式：层级展开图标，表示每个章节独立显示 -->
+                      <path
+                        v-if="store.expandedMode"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      ></path>
+                      <!-- 折叠模式：层级折叠图标，表示按漫画分组显示 -->
+                      <path
+                        v-else
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 9l-7 7-7-7"
+                      ></path>
+                    </svg>
+                  </template>
+                </n-button>
+                <span class="text-xs font-bold text-gray-500 tracking-wider"
+                  >书架 LIBRARY</span
+                >
+              </div>
+              <n-button text size="small" @click="loadMangaList">
+                <template #icon>
+                  <svg
+                    class="w-4 h-4"
+                    :class="{ 'animate-spin': store.loading.library }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    ></path>
+                  </svg>
+                </template>
+              </n-button>
+            </div>
+            <MangaList />
+          </aside>
+        </template>
+        <template #2>
+          <!-- 中间阅读区域 -->
+          <main class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full">
+            <div
+              v-if="store.loading.chapter && store.currentImages.length === 0"
+              class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
+            >
+              <n-spin size="large" />
+              <span class="mt-4 text-xs text-green-500 font-mono animate-pulse"
+                >正在读取数据流...</span
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                ></path>
-              </svg>
-            </template>
-          </n-button>
-        </div>
-        <MangaList />
-      </aside>
-
-      <!-- 中间阅读区域 -->
-      <main class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden">
-        <div
-          v-if="store.loading.chapter && store.currentImages.length === 0"
-          class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
-        >
-          <n-spin size="large" />
-          <span class="mt-4 text-xs text-green-500 font-mono animate-pulse"
-            >正在读取数据流...</span
+            </div>
+            <ImageViewer ref="imageViewerRef" />
+          </main>
+        </template>
+      </n-split>
+      <template v-else>
+        <!-- 侧边栏折叠时 -->
+        <aside
+          class="bg-[#18181c] border-r border-gray-800 flex flex-col h-full z-10"
+          style="width: 0; overflow: hidden; opacity: 0"
+        ></aside>
+        <main class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full">
+          <div
+            v-if="store.loading.chapter && store.currentImages.length === 0"
+            class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
           >
-        </div>
-        <ImageViewer ref="imageViewerRef" />
-      </main>
+            <n-spin size="large" />
+            <span class="mt-4 text-xs text-green-500 font-mono animate-pulse"
+              >正在读取数据流...</span
+            >
+          </div>
+          <ImageViewer ref="imageViewerRef" />
+        </main>
+      </template>
     </div>
 
     <!-- 设置面板 -->
@@ -199,6 +253,61 @@ const message = useMessage();
 const router = useRouter();
 const store = useComicStore();
 const imageViewerRef = ref<InstanceType<typeof ImageViewer> | null>(null);
+const containerRef = ref<HTMLElement | null>(null);
+
+// n-split 使用百分比（0-1），需要与像素值转换
+const sidebarSizePercent = ref(0.2); // 默认 20%
+
+// 获取容器实际宽度
+function getContainerWidth(): number {
+  if (containerRef.value) {
+    return containerRef.value.offsetWidth || containerRef.value.clientWidth;
+  }
+  return window.innerWidth || 1920;
+}
+
+// 将像素值转换为百分比
+function pixelToPercent(pixels: number): number {
+  const containerWidth = getContainerWidth();
+  if (containerWidth === 0) return 0.2;
+  return Math.max(0.1, Math.min(0.5, pixels / containerWidth));
+}
+
+// 将百分比转换为像素值
+function percentToPixel(percent: number): number {
+  const containerWidth = getContainerWidth();
+  const pixels = percent * containerWidth;
+  return Math.max(200, Math.min(800, pixels));
+}
+
+// 处理 split 尺寸变化
+function handleSplitSizeChange(value: number) {
+  const pixels = percentToPixel(value);
+  store.setSidebarWidth(pixels);
+}
+
+// 监听侧边栏宽度变化，同步到百分比
+watch(
+  () => store.sidebarWidth,
+  (width) => {
+    nextTick(() => {
+      sidebarSizePercent.value = pixelToPercent(width);
+    });
+  },
+  { immediate: true }
+);
+
+// 监听窗口大小变化，重新计算百分比
+watch(
+  () => store.sidebarCollapsed,
+  (collapsed) => {
+    if (!collapsed) {
+      nextTick(() => {
+        sidebarSizePercent.value = pixelToPercent(store.sidebarWidth);
+      });
+    }
+  }
+);
 
 // 自动滚动定时器
 let autoScrollInterval: number | null = null;
@@ -219,7 +328,10 @@ async function loadMangaList() {
   try {
     // 确保传递的是纯数组，创建新数组避免传递响应式对象
     const staticDirsArray = [...store.staticDirs].map((dir) => String(dir));
-    const mangas = await window.comicReaderAPI.getMangaList(staticDirsArray);
+    const mangas = await window.comicReaderAPI.getMangaList(
+      staticDirsArray,
+      store.expandedMode
+    );
     store.setMangas(mangas);
     await refreshCurrentSelection(mangas);
   } catch (error) {
@@ -233,12 +345,26 @@ async function loadMangaList() {
   }
 }
 
+// 检查是否在输入框中
+function isInInputElement(): boolean {
+  const activeElement = document.activeElement as HTMLElement;
+  if (!activeElement) return false;
+  return (
+    activeElement.tagName === "INPUT" ||
+    activeElement.tagName === "TEXTAREA" ||
+    activeElement.isContentEditable
+  );
+}
+
 // 自动滚动功能
 function startAutoScroll() {
   if (autoScrollInterval) return;
 
   autoScrollInterval = window.setInterval(() => {
     if (!imageViewerRef.value) return;
+
+    // 如果当前焦点在输入框中，则不执行滚动
+    if (isInInputElement()) return;
 
     const speed = store.autoScrollSpeed * 2; // 像素/帧
 
@@ -292,6 +418,9 @@ watch(
 function handleKeydown(e: KeyboardEvent) {
   const key = e.code;
   const hotkeys = store.hotkeys;
+
+  // 检查是否在输入框中，如果是则不触发快捷键
+  if (isInInputElement()) return;
 
   // 检查是否是快捷键
   if (key === hotkeys.scrollDown) {
@@ -381,10 +510,7 @@ async function loadPrevChapter() {
 }
 
 // 加载章节
-async function loadChapter(
-  manga: typeof store.currentManga,
-  chapterTitle: string
-) {
+async function loadChapter(manga: typeof store.currentManga, chapterTitle: string) {
   if (!manga || !chapterTitle) return;
 
   store.setCurrentChapter(chapterTitle);

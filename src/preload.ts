@@ -431,8 +431,13 @@ function countImagesInDirectory(dirPath: string): number {
 
 /**
  * 获取漫画列表
+ * @param staticDirs 静态目录列表
+ * @param expanded 是否展开模式：展开时每个章节作为独立项返回
  */
-async function getMangaList(staticDirs: string[]): Promise<MangaItem[]> {
+async function getMangaList(
+  staticDirs: string[],
+  expanded: boolean = false
+): Promise<MangaItem[]> {
   const folders: MangaItem[] = [];
   const processedMangas = new Set<string>();
 
@@ -467,27 +472,55 @@ async function getMangaList(staticDirs: string[]): Promise<MangaItem[]> {
         const mtimeMs = Number(stats.mtimeMs);
         const st_mtime = Number(mtimeMs / 1000);
 
-        folders.push({
-          name: String(name),
-          meta: {
-            id: String(meta.id),
-            name: String(meta.name),
-            chapterInfos: meta.chapterInfos.map((ch) => {
-              // 只返回类型定义中要求的字段，忽略 path 和 children
-              return {
-                chapterId: String(ch.chapterId),
-                chapterTitle: String(ch.chapterTitle),
-                order: Number(ch.order),
-              };
-            }),
-            ...(meta.generated !== undefined && {
-              generated: Boolean(meta.generated),
-            }),
-          },
-          info: {
-            st_mtime: st_mtime,
-          },
-        });
+        if (expanded) {
+          // 展开模式：每个章节作为独立的MangaItem
+          // name保持为原始漫画名，以便loadChapter能正确工作
+          for (const chapter of meta.chapterInfos) {
+            folders.push({
+              name: String(name), // 保持原始漫画名
+              meta: {
+                id: `${meta.id}-${chapter.chapterId}`,
+                name: String(meta.name), // 保持原始漫画名
+                chapterInfos: [
+                  {
+                    chapterId: String(chapter.chapterId),
+                    chapterTitle: String(chapter.chapterTitle),
+                    order: Number(chapter.order),
+                  },
+                ],
+                ...(meta.generated !== undefined && {
+                  generated: Boolean(meta.generated),
+                }),
+              },
+              info: {
+                st_mtime: st_mtime,
+              },
+            });
+          }
+        } else {
+          // 折叠模式：保持原有结构
+          folders.push({
+            name: String(name),
+            meta: {
+              id: String(meta.id),
+              name: String(meta.name),
+              chapterInfos: meta.chapterInfos.map((ch) => {
+                // 只返回类型定义中要求的字段，忽略 path 和 children
+                return {
+                  chapterId: String(ch.chapterId),
+                  chapterTitle: String(ch.chapterTitle),
+                  order: Number(ch.order),
+                };
+              }),
+              ...(meta.generated !== undefined && {
+                generated: Boolean(meta.generated),
+              }),
+            },
+            info: {
+              st_mtime: st_mtime,
+            },
+          });
+        }
 
         processedMangas.add(name);
       }
@@ -496,14 +529,35 @@ async function getMangaList(staticDirs: string[]): Promise<MangaItem[]> {
     }
   }
 
-  // 按创建时间排序
-  folders.sort((a, b) => b.info.st_mtime - a.info.st_mtime);
-  // 将"收藏夹"排到最前
-  folders.sort((a, b) => {
-    if (a.name === "收藏夹") return -1;
-    if (b.name === "收藏夹") return 1;
-    return 0;
-  });
+  if (expanded) {
+    // 展开模式下，先按漫画名分组，然后按章节order排序，保持嵌套内容的顺序
+    folders.sort((a, b) => {
+      // 先按漫画名分组
+      if (a.name !== b.name) {
+        // 不同漫画之间，按st_mtime排序
+        return b.info.st_mtime - a.info.st_mtime;
+      }
+      // 同一漫画内，按章节order排序
+      const aOrder = a.meta.chapterInfos[0]?.order ?? 0;
+      const bOrder = b.meta.chapterInfos[0]?.order ?? 0;
+      return aOrder - bOrder;
+    });
+    // 将"收藏夹"排到最前
+    folders.sort((a, b) => {
+      if (a.name === "收藏夹") return -1;
+      if (b.name === "收藏夹") return 1;
+      return 0;
+    });
+  } else {
+    // 折叠模式下，按创建时间排序
+    folders.sort((a, b) => b.info.st_mtime - a.info.st_mtime);
+    // 将"收藏夹"排到最前
+    folders.sort((a, b) => {
+      if (a.name === "收藏夹") return -1;
+      if (b.name === "收藏夹") return 1;
+      return 0;
+    });
+  }
 
   return folders;
 }
