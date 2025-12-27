@@ -85,6 +85,15 @@ export const useComicStore = defineStore("comic", () => {
   // 展开模式：展开时每个章节作为独立项显示
   const expandedMode = useStorage("comic-reader-expanded-mode", false);
 
+  // 缓存两种模式的数据
+  const mangasCache = ref<{
+    expanded: MangaItem[] | null;
+    collapsed: MangaItem[] | null;
+  }>({
+    expanded: null,
+    collapsed: null,
+  });
+
   // 计算属性
   const hasCurrentManga = computed(() => currentManga.value !== null);
   const hasCurrentChapter = computed(() => currentChapter.value !== "");
@@ -177,6 +186,25 @@ export const useComicStore = defineStore("comic", () => {
     expandedMode.value = !expandedMode.value;
   }
 
+  function getCachedMangas(): MangaItem[] | null {
+    return expandedMode.value
+      ? mangasCache.value.expanded
+      : mangasCache.value.collapsed;
+  }
+
+  function setCachedMangas(mangas: MangaItem[]) {
+    if (expandedMode.value) {
+      mangasCache.value.expanded = mangas;
+    } else {
+      mangasCache.value.collapsed = mangas;
+    }
+  }
+
+  function clearMangasCache() {
+    mangasCache.value.expanded = null;
+    mangasCache.value.collapsed = null;
+  }
+
   async function pinManga(name: string) {
     const dirs = [...staticDirs.value].map((d) => String(d));
     try {
@@ -185,7 +213,7 @@ export const useComicStore = defineStore("comic", () => {
         window.$message.success(`已顶置：${name}`);
       }
       if (window.$loadMangaList) {
-        await window.$loadMangaList();
+        await window.$loadMangaList(true);
       }
     } catch (error) {
       console.error("顶置漫画失败:", error);
@@ -209,7 +237,7 @@ export const useComicStore = defineStore("comic", () => {
         currentPage.value = 0;
       }
       if (window.$loadMangaList) {
-        await window.$loadMangaList();
+        await window.$loadMangaList(true);
       }
     } catch (error) {
       console.error("删除漫画失败:", error);
@@ -266,6 +294,9 @@ export const useComicStore = defineStore("comic", () => {
     setSearchKeyword,
     setSidebarWidth,
     toggleExpandedMode,
+    getCachedMangas,
+    setCachedMangas,
+    clearMangasCache,
     pinManga,
     deleteManga,
   };

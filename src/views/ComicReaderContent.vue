@@ -100,7 +100,7 @@
           设置
         </n-button>
 
-        <n-button size="small" @click="loadMangaList">刷新</n-button>
+        <n-button size="small" @click="loadMangaList(true)">刷新</n-button>
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-400">缩放</span>
           <n-slider
@@ -148,7 +148,7 @@
                   :type="store.expandedMode ? 'primary' : 'default'"
                   @click="
                     store.toggleExpandedMode();
-                    loadMangaList();
+                    loadMangaList(false);
                   "
                   :title="
                     store.expandedMode
@@ -186,7 +186,7 @@
                   >书架 LIBRARY</span
                 >
               </div>
-              <n-button text size="small" @click="loadMangaList">
+              <n-button text size="small" @click="loadMangaList(true)">
                 <template #icon>
                   <svg
                     class="w-4 h-4"
@@ -337,10 +337,25 @@ function goToJMComic() {
 }
 
 // 加载漫画列表
-async function loadMangaList() {
+async function loadMangaList(forceRefresh: boolean = false) {
   if (store.staticDirs.length === 0) {
     message.warning("请先选择漫画目录");
     return;
+  }
+
+  // 如果不是强制刷新，尝试从缓存获取
+  if (!forceRefresh) {
+    const cachedMangas = store.getCachedMangas();
+    if (cachedMangas && cachedMangas.length > 0) {
+      store.setMangas(cachedMangas);
+      await refreshCurrentSelection(cachedMangas);
+      return;
+    }
+  }
+
+  // 强制刷新时，先清空列表
+  if (forceRefresh) {
+    store.setMangas([]);
   }
 
   store.setLoading("library", true);
@@ -352,6 +367,7 @@ async function loadMangaList() {
       store.expandedMode
     );
     store.setMangas(mangas);
+    store.setCachedMangas(mangas);
     await refreshCurrentSelection(mangas);
   } catch (error) {
     console.error("加载漫画列表失败:", error);
@@ -645,9 +661,9 @@ onMounted(async () => {
   }
 
   setTimeout(async () => {
-    // 如果有已配置的目录，自动加载
+    // 如果有已配置的目录，自动加载（首次加载强制刷新）
     if (store.staticDirs.length > 0) {
-      await loadMangaList();
+      await loadMangaList(true);
     }
   }, 100);
 });

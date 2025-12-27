@@ -83,6 +83,18 @@
       </n-spin>
     </div>
 
+    <!-- 刷新时的加载状态 -->
+    <div
+      v-else-if="filteredMangas.length === 0 && store.loading.library"
+      class="flex-1 flex items-center justify-center"
+    >
+      <n-spin size="large">
+        <template #description>
+          <span class="text-gray-400 text-xs">正在加载漫画列表...</span>
+        </template>
+      </n-spin>
+    </div>
+
     <div
       v-else-if="filteredMangas.length === 0 && !store.loading.library"
       class="text-center py-10 text-gray-600 text-xs flex-1 flex items-center justify-center"
@@ -353,7 +365,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
+import {
+  reactive,
+  ref,
+  watch,
+  computed,
+  onMounted,
+  onUnmounted,
+  nextTick,
+} from "vue";
 import LazyFileImage from "./LazyFileImage.vue";
 import { useComicStore } from "../stores/comic";
 import type { ImageItem, MangaItem } from "../stores/comic";
@@ -461,7 +481,7 @@ watch(
 // 切换模式时的加载状态
 const isSwitchingMode = ref(false);
 
-// 监听展开模式变化，清理封面缓存并刷新列表
+// 监听展开模式变化，从缓存恢复数据
 watch(
   () => store.expandedMode,
   async () => {
@@ -475,12 +495,12 @@ watch(
     });
     loadingSet.clear();
 
-    // 刷新列表
+    // 从缓存恢复列表（不强制刷新）
     if (window.$loadMangaList) {
       try {
-        await window.$loadMangaList();
+        await window.$loadMangaList(false);
       } catch (error) {
-        console.error("切换模式后刷新列表失败:", error);
+        console.error("切换模式后恢复列表失败:", error);
       } finally {
         isSwitchingMode.value = false;
       }
@@ -672,7 +692,10 @@ async function handleMangaClick(event: MouseEvent, manga: MangaItem) {
     const menuWidth = 250;
     const itemHeight = 44; // 每个菜单项的高度（包括padding和border）
     const maxMenuHeight = 400; // 最大高度限制
-    const actualMenuHeight = Math.min(chapters.length * itemHeight, maxMenuHeight);
+    const actualMenuHeight = Math.min(
+      chapters.length * itemHeight,
+      maxMenuHeight
+    );
     const padding = 10;
 
     // 基于鼠标位置计算，但考虑窗口边界
@@ -807,11 +830,11 @@ function handleGlobalClick(event: MouseEvent) {
 
 // 添加和移除全局点击监听器
 onMounted(() => {
-  document.addEventListener('click', handleGlobalClick);
+  document.addEventListener("click", handleGlobalClick);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleGlobalClick);
+  document.removeEventListener("click", handleGlobalClick);
 });
 </script>
 
@@ -822,5 +845,4 @@ onUnmounted(() => {
   border-radius: 0px !important;
   right: 0;
 }
-
 </style>

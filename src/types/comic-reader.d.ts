@@ -77,6 +77,6 @@ declare global {
       warning: (message: string) => void;
       info: (message: string) => void;
     };
-    $loadMangaList?: () => Promise<void>;
+    $loadMangaList?: (forceRefresh?: boolean) => Promise<void>;
   }
 }

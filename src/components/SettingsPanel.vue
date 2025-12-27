@@ -178,7 +178,7 @@ async function handleAddDirectory() {
     }
     // 自动刷新漫画列表
     if (window.$loadMangaList) {
-      await window.$loadMangaList();
+      await window.$loadMangaList(true);
     }
   }
 }
@@ -199,7 +199,7 @@ async function handleSelectDirectory(index: number) {
     }
     // 自动刷新漫画列表
     if (window.$loadMangaList) {
-      await window.$loadMangaList();
+      await window.$loadMangaList(true);
     }
   }
 }
@@ -223,7 +223,7 @@ async function handleDirectoryChange(index: number) {
 
   // 自动刷新漫画列表
   if (window.$loadMangaList) {
-    await window.$loadMangaList();
+    await window.$loadMangaList(true);
   }
 }
 
@@ -243,7 +243,7 @@ function handleRemoveDirectory(index: number) {
       }
       // 自动刷新漫画列表
       if (window.$loadMangaList) {
-        window.$loadMangaList();
+        window.$loadMangaList(true);
       }
     },
   });
