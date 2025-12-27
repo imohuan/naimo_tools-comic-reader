@@ -13,7 +13,12 @@
           class="text-gray-400 hover:text-white"
         >
           <template #icon>
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -52,7 +57,12 @@
           @click="store.toggleAutoScroll()"
         >
           <template #icon>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -67,7 +77,12 @@
         <!-- 设置按钮 -->
         <n-button size="small" @click="store.toggleSettings()">
           <template #icon>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -150,7 +165,7 @@
                     >
                       <!-- 展开模式：层级展开图标，表示每个章节独立显示 -->
                       <path
-                        v-if="store.expandedMode"
+                        v-if="!store.expandedMode"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         stroke-width="2"
@@ -195,7 +210,9 @@
         </template>
         <template #2>
           <!-- 中间阅读区域 -->
-          <main class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full">
+          <main
+            class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full"
+          >
             <div
               v-if="store.loading.chapter && store.currentImages.length === 0"
               class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
@@ -215,7 +232,9 @@
           class="bg-[#18181c] border-r border-gray-800 flex flex-col h-full z-10"
           style="width: 0; overflow: hidden; opacity: 0"
         ></aside>
-        <main class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full">
+        <main
+          class="flex-1 relative bg-[#050505] flex flex-col overflow-hidden h-full"
+        >
           <div
             v-if="store.loading.chapter && store.currentImages.length === 0"
             class="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/50 backdrop-blur-sm"
@@ -510,7 +529,10 @@ async function loadPrevChapter() {
 }
 
 // 加载章节
-async function loadChapter(manga: typeof store.currentManga, chapterTitle: string) {
+async function loadChapter(
+  manga: typeof store.currentManga,
+  chapterTitle: string
+) {
   if (!manga || !chapterTitle) return;
 
   store.setCurrentChapter(chapterTitle);

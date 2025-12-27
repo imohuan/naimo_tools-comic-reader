@@ -439,6 +439,7 @@ async function getMangaList(
   expanded: boolean = false
 ): Promise<MangaItem[]> {
   const folders: MangaItem[] = [];
+  // 使用完整路径作为key，避免不同staticDir下同名目录的冲突
   const processedMangas = new Set<string>();
 
   for (const staticDir of staticDirs) {
@@ -446,9 +447,12 @@ async function getMangaList(
       const items = await fsPromises.readdir(staticDir);
 
       for (const name of items) {
-        if (processedMangas.has(name)) continue;
-
         const folderPath = path.join(staticDir, name);
+
+        // 使用规范化后的完整路径作为唯一标识，避免重复
+        const normalizedPath = path.normalize(folderPath);
+        if (processedMangas.has(normalizedPath)) continue;
+
         const stats = await fsPromises.stat(folderPath);
 
         if (!stats.isDirectory()) continue;
@@ -522,7 +526,7 @@ async function getMangaList(
           });
         }
 
-        processedMangas.add(name);
+        processedMangas.add(normalizedPath);
       }
     } catch (error) {
       console.error(`读取目录失败: ${staticDir}`, error);
@@ -549,6 +553,18 @@ async function getMangaList(
       return 0;
     });
   } else {
+    // 折叠模式下，先按漫画名或id去重，保留最新的一个
+    const uniqueFolders = new Map<string, MangaItem>();
+    for (const folder of folders) {
+      const key = folder.meta.id || folder.name;
+      const existing = uniqueFolders.get(key);
+      if (!existing || folder.info.st_mtime > existing.info.st_mtime) {
+        uniqueFolders.set(key, folder);
+      }
+    }
+    folders.length = 0;
+    folders.push(...uniqueFolders.values());
+
     // 折叠模式下，按创建时间排序
     folders.sort((a, b) => b.info.st_mtime - a.info.st_mtime);
     // 将"收藏夹"排到最前

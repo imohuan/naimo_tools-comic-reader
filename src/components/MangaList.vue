@@ -32,7 +32,12 @@
             @click="store.setListLayoutMode('list')"
           >
             <template #icon>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -47,7 +52,12 @@
             @click="store.setListLayoutMode('grid')"
           >
             <template #icon>
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -64,8 +74,17 @@
       </div>
     </div>
 
+    <!-- 切换模式时的加载状态 -->
+    <div v-if="isSwitchingMode" class="flex-1 flex items-center justify-center">
+      <n-spin size="large">
+        <template #description>
+          <span class="text-gray-400 text-xs">切换显示模式中...</span>
+        </template>
+      </n-spin>
+    </div>
+
     <div
-      v-if="filteredMangas.length === 0 && !store.loading.library"
+      v-else-if="filteredMangas.length === 0 && !store.loading.library"
       class="text-center py-10 text-gray-600 text-xs flex-1 flex items-center justify-center"
     >
       {{ store.searchKeyword ? "未找到匹配的漫画" : "暂无数据" }}
@@ -87,9 +106,15 @@
               :class="{
                 'bg-green-500/10 text-green-400':
                   store.currentManga?.name === manga.name &&
-                  store.currentChapter === manga.meta.chapterInfos[0].chapterTitle,
+                  store.currentChapter ===
+                    manga.meta.chapterInfos[0].chapterTitle,
               }"
-              @click="handleChapterClick(manga, manga.meta.chapterInfos[0].chapterTitle)"
+              @click="
+                handleChapterClick(
+                  manga,
+                  manga.meta.chapterInfos[0].chapterTitle
+                )
+              "
               @contextmenu.prevent="openContextMenu($event, manga)"
             >
               <div
@@ -100,7 +125,9 @@
                     coverImageItems[getCoverCacheKey(manga)] ||
                     placeholderCoverItems[manga.name]
                   "
-                  :file-path="coverImageItems[getCoverCacheKey(manga)]?.path || ''"
+                  :file-path="
+                    coverImageItems[getCoverCacheKey(manga)]?.path || ''
+                  "
                   :get-scroll-container="getScrollContainer"
                   :img-style="{
                     width: '100%',
@@ -155,7 +182,9 @@
                         coverImageItems[getCoverCacheKey(manga)] ||
                         placeholderCoverItems[manga.name]
                       "
-                      :file-path="coverImageItems[getCoverCacheKey(manga)]?.path || ''"
+                      :file-path="
+                        coverImageItems[getCoverCacheKey(manga)]?.path || ''
+                      "
                       :get-scroll-container="getScrollContainer"
                       :img-style="{
                         width: '100%',
@@ -231,20 +260,24 @@
             <div
               class="rounded overflow-hidden border-2 transition-all"
               :class="{
-                'border-white bg-white shadow-lg shadow-gray-500/30': isMangaSelected(
-                  manga
-                ),
-                'border-gray-800 hover:border-gray-700': !isMangaSelected(manga),
+                'border-white bg-white shadow-lg shadow-gray-500/30':
+                  isMangaSelected(manga),
+                'border-gray-800 hover:border-gray-700':
+                  !isMangaSelected(manga),
               }"
             >
               <!-- 封面 -->
-              <div class="w-full aspect-[9/16] bg-gray-800 overflow-hidden relative">
+              <div
+                class="w-full aspect-[9/16] bg-gray-800 overflow-hidden relative"
+              >
                 <LazyFileImage
                   :item="
                     coverImageItems[getCoverCacheKey(manga)] ||
                     placeholderCoverItems[manga.name]
                   "
-                  :file-path="coverImageItems[getCoverCacheKey(manga)]?.path || ''"
+                  :file-path="
+                    coverImageItems[getCoverCacheKey(manga)]?.path || ''
+                  "
                   :get-scroll-container="getScrollContainer"
                   :img-style="{
                     width: '100%',
@@ -292,52 +325,35 @@
       @clickoutside="contextMenuVisible = false"
     />
 
-    <!-- 章节选择悬浮框 -->
-    <n-popover
-      placement="bottom-start"
-      trigger="manual"
-      :show="chapterMenuVisible"
-      :x="chapterMenuX"
-      :y="chapterMenuY"
-      :flip="true"
-      :show-arrow="false"
-      class="chapter-menu-dropdown"
-      @clickoutside="chapterMenuVisible = false"
+    <!-- 自定义章节选择下拉菜单 -->
+    <div
+      v-if="chapterMenuVisible"
+      ref="chapterMenuDropdown"
+      class="fixed z-50 min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto overflow-x-hidden bg-gray-800 border border-gray-600 rounded-lg shadow-xl"
+      :style="{
+        left: chapterMenuX + 'px',
+        top: chapterMenuY + 'px',
+      }"
+      @click.stop
     >
-      <template #trigger>
-        <div
-          style="
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 0;
-            height: 0;
-            pointer-events: none;
-          "
-        ></div>
-      </template>
       <div
-        class="min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto overflow-x-hidden"
+        v-for="option in chapterMenuOptions"
+        :key="option.key"
+        class="px-3 py-2 cursor-pointer transition-colors border-b border-gray-700 last:border-b-0 hover:bg-gray-700"
+        @click="handleChapterMenuSelect(option.key)"
       >
-        <div
-          v-for="option in chapterMenuOptions"
-          :key="option.key"
-          class="min-w-[200px] max-w-[300px] px-3 py-2 cursor-pointer transition-colors border-b border-gray-700 last:border-b-0 hover:bg-gray-700"
-          @click="handleChapterMenuSelect(option.key)"
+        <span
+          class="block w-full whitespace-nowrap overflow-hidden text-ellipsis text-gray-200 text-sm leading-normal"
+          :title="option.label"
+          >{{ option.label }}</span
         >
-          <span
-            class="block w-full whitespace-nowrap overflow-hidden text-ellipsis text-gray-200 text-sm leading-normal"
-            :title="option.label"
-            >{{ option.label }}</span
-          >
-        </div>
       </div>
-    </n-popover>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch, computed } from "vue";
+import { reactive, ref, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
 import LazyFileImage from "./LazyFileImage.vue";
 import { useComicStore } from "../stores/comic";
 import type { ImageItem, MangaItem } from "../stores/comic";
@@ -345,6 +361,7 @@ import type { ScrollbarInst } from "naive-ui";
 
 const store = useComicStore();
 const scrollbarRef = ref<ScrollbarInst | null>(null);
+const chapterMenuDropdown = ref<HTMLElement | null>(null);
 
 // Grid 布局项宽度（根据侧边栏宽度动态计算）
 const gridItemWidth = computed(() => {
@@ -441,16 +458,35 @@ watch(
   { immediate: true }
 );
 
-// 监听展开模式变化，清理封面缓存
+// 切换模式时的加载状态
+const isSwitchingMode = ref(false);
+
+// 监听展开模式变化，清理封面缓存并刷新列表
 watch(
   () => store.expandedMode,
-  () => {
-    // 切换模式时清理所有封面缓存和加载状态，避免缓存混乱
-    // 直接清空对象和集合，比逐个删除更高效
+  async () => {
+    // 切换模式时先清空列表并显示加载状态
+    isSwitchingMode.value = true;
+    store.setMangas([]);
+
+    // 清理所有封面缓存和加载状态，避免缓存混乱
     Object.keys(coverImageItems).forEach((key) => {
       delete coverImageItems[key];
     });
     loadingSet.clear();
+
+    // 刷新列表
+    if (window.$loadMangaList) {
+      try {
+        await window.$loadMangaList();
+      } catch (error) {
+        console.error("切换模式后刷新列表失败:", error);
+      } finally {
+        isSwitchingMode.value = false;
+      }
+    } else {
+      isSwitchingMode.value = false;
+    }
   }
 );
 
@@ -580,14 +616,17 @@ const chapterMenuOptions = ref<
   }>
 >([]);
 
-function getExpandedName(manga: typeof store.mangas[0]) {
+function getExpandedName(manga: (typeof store.mangas)[0]) {
   if (store.currentManga?.name === manga.name && store.currentChapter) {
     return manga.name;
   }
   return null;
 }
 
-async function handleChapterClick(manga: typeof store.mangas[0], chapterTitle: string) {
+async function handleChapterClick(
+  manga: (typeof store.mangas)[0],
+  chapterTitle: string
+) {
   const chapters = manga.meta.chapterInfos;
 
   if (chapters.length === 0) {
@@ -620,37 +659,42 @@ async function handleMangaClick(event: MouseEvent, manga: MangaItem) {
     // 多章节显示章节选择菜单
     chapterMenuManga.value = manga;
 
-    // 计算菜单位置，确保不超出屏幕
-    const menuMaxWidth = 300;
-    const menuMaxHeight = 400;
-    const padding = 8; // 距离屏幕边缘的最小距离
+    // 先设置菜单选项，以便计算实际高度
+    chapterMenuOptions.value = chapters.map((chapter) => ({
+      label: chapter.chapterTitle,
+      key: chapter.chapterTitle,
+    }));
 
+    // 等待 DOM 更新后计算实际菜单尺寸
+    await nextTick();
+
+    // 菜单尺寸 - 动态计算
+    const menuWidth = 250;
+    const itemHeight = 44; // 每个菜单项的高度（包括padding和border）
+    const maxMenuHeight = 400; // 最大高度限制
+    const actualMenuHeight = Math.min(chapters.length * itemHeight, maxMenuHeight);
+    const padding = 10;
+
+    // 基于鼠标位置计算，但考虑窗口边界
     let x = event.clientX;
     let y = event.clientY;
 
-    // 检查右边界
-    if (x + menuMaxWidth > window.innerWidth - padding) {
-      x = window.innerWidth - menuMaxWidth - padding;
+    // 右边界检测 - 如果菜单会超出右边界，向左偏移
+    if (x + menuWidth > window.innerWidth - padding) {
+      x = window.innerWidth - menuWidth - padding;
     }
-    // 检查左边界
+
+    // 左边界检测 - 确保不会超出左边界
     if (x < padding) {
       x = padding;
     }
 
-    // 检查下边界
-    if (y + menuMaxHeight > window.innerHeight - padding) {
-      // 如果下方空间不足，尝试向上显示
-      const spaceAbove = y - padding;
-      const spaceBelow = window.innerHeight - y - padding;
-      if (spaceAbove > spaceBelow && spaceAbove >= 200) {
-        // 向上显示，但需要调整 y 坐标
-        y = y - Math.min(menuMaxHeight, spaceAbove);
-      } else {
-        // 保持在下方，但限制高度
-        y = window.innerHeight - menuMaxHeight - padding;
-      }
+    // 下边界检测 - 如果菜单会超出下边界，向上偏移
+    if (y + actualMenuHeight > window.innerHeight - padding) {
+      y = y - actualMenuHeight; // 显示在鼠标上方
     }
-    // 检查上边界
+
+    // 上边界检测 - 确保不会超出上边界
     if (y < padding) {
       y = padding;
     }
@@ -658,16 +702,17 @@ async function handleMangaClick(event: MouseEvent, manga: MangaItem) {
     chapterMenuX.value = x;
     chapterMenuY.value = y;
 
-    chapterMenuOptions.value = chapters.map((chapter) => ({
-      label: chapter.chapterTitle,
-      key: chapter.chapterTitle,
-    }));
+    // 阻止事件冒泡，避免立即触发全局点击关闭
+    event.stopPropagation();
 
     chapterMenuVisible.value = true;
   }
 }
 
-async function loadChapter(manga: typeof store.mangas[0], chapterTitle: string) {
+async function loadChapter(
+  manga: (typeof store.mangas)[0],
+  chapterTitle: string
+) {
   store.setCurrentManga(manga);
   store.setCurrentChapter(chapterTitle);
   store.setLoading("chapter", true);
@@ -749,6 +794,25 @@ async function handleChapterMenuSelect(key: string) {
   await handleChapterClick(manga, key);
   chapterMenuVisible.value = false;
 }
+
+// 点击外部关闭章节菜单
+function handleGlobalClick(event: MouseEvent) {
+  if (chapterMenuVisible.value && chapterMenuDropdown.value) {
+    const target = event.target as Node;
+    if (!chapterMenuDropdown.value.contains(target)) {
+      chapterMenuVisible.value = false;
+    }
+  }
+}
+
+// 添加和移除全局点击监听器
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick);
+});
 </script>
 
 <style>
@@ -759,9 +823,4 @@ async function handleChapterMenuSelect(key: string) {
   right: 0;
 }
 
-/* 章节选择菜单样式 */
-:global(.chapter-menu-dropdown .n-popover__content) {
-  padding: 0 !important;
-  background: transparent !important;
-}
 </style>
